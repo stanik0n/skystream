@@ -1,0 +1,193 @@
+networks:
+  skystream-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  kafka_data:
+
+services:
+  # ── Zookeeper ──────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: skystream-zookeeper
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/2181 && echo srvr >&3 && cat <&3 | grep -q Mode'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Kafka ──────────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: skystream-kafka
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 4
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: skystream-redis
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ── PostgreSQL + TimescaleDB ───────────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: skystream-postgres
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: skystream
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d skystream"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Spark Streaming ───────────────────────────────────────────────────────
+  spark:
+    build:
+      context: ../spark
+      dockerfile: Dockerfile
+    container_name: skystream-spark
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../spark:/opt/spark/work-dir/spark
+      - ../checkpoints:/opt/spark/checkpoints
+    environment:
+      SPARK_MASTER: local[*]
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: raw-flights
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/skystream
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      REDIS_URL: redis://redis:6379
+    command: ["python", "/opt/spark/work-dir/spark/stream_processor.py"]
+
+  # ── Flight Data Producer ──────────────────────────────────────────────────
+  producer:
+    build:
+      context: ../producer
+      dockerfile: Dockerfile
+    container_name: skystream-producer
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: raw-flights
+      OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
+      OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
+      OPENSKY_TOKEN_URL: ${OPENSKY_TOKEN_URL:-https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token}
+      OPENSKY_USERNAME: ${OPENSKY_USERNAME:-}
+      OPENSKY_PASSWORD: ${OPENSKY_PASSWORD:-}
+      OPENSKY_BBOX_MIN_LAT: ${OPENSKY_BBOX_MIN_LAT:-24.0}
+      OPENSKY_BBOX_MAX_LAT: ${OPENSKY_BBOX_MAX_LAT:-50.0}
+      OPENSKY_BBOX_MIN_LON: ${OPENSKY_BBOX_MIN_LON:--125.0}
+      OPENSKY_BBOX_MAX_LON: ${OPENSKY_BBOX_MAX_LON:--66.0}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-10}
+
+  # ── WebSocket API ─────────────────────────────────────────────────────────
+  websocket:
+    build:
+      context: ../websocket
+      dockerfile: Dockerfile
+    container_name: skystream-websocket
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/skystream
+      WS_BROADCAST_INTERVAL_MS: ${WS_BROADCAST_INTERVAL_MS:-5000}
+
+  # ── React Frontend ────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: skystream-web
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000/ws}
+      VITE_MAPLIBRE_STYLE_URL: ${MAPLIBRE_STYLE_URL:-https://tiles.openfreemap.org/styles/liberty}
