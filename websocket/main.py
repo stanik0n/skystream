@@ -270,9 +270,51 @@ async def broadcast_loop() -> None:
 
 # ── HTTP endpoints ─────────────────────────────────────────────────────────────
 
+_TRAILS_QUERY = """
+SELECT icao24, lat, lon, flight_phase
+FROM (
+    SELECT
+        icao24,
+        latitude    AS lat,
+        longitude   AS lon,
+        flight_phase,
+        ROW_NUMBER() OVER (PARTITION BY icao24 ORDER BY time DESC) AS rn
+    FROM flight_states
+    WHERE time > now() - interval '15 minutes'
+      AND latitude  IS NOT NULL
+      AND longitude IS NOT NULL
+) t
+WHERE rn <= 15
+ORDER BY icao24, rn DESC
+"""
+
+
 @app.get("/health")
 async def health() -> JSONResponse:
     return JSONResponse({"status": "ok"})
+
+
+@app.get("/trails")
+async def get_trails() -> JSONResponse:
+    """Return the last 15 positions per aircraft from the past 15 minutes."""
+    if state.pg_pool is None:
+        return JSONResponse({"trails": []})
+    try:
+        async with state.pg_pool.acquire() as conn:
+            rows = await conn.fetch(_TRAILS_QUERY)
+
+        trails: dict[str, dict] = {}
+        for r in rows:
+            icao24 = r["icao24"]
+            if icao24 not in trails:
+                trails[icao24] = {"icao24": icao24, "path": [], "phase": r["flight_phase"]}
+            trails[icao24]["path"].append([r["lon"], r["lat"]])
+            trails[icao24]["phase"] = r["flight_phase"]
+
+        return JSONResponse({"trails": [t for t in trails.values() if len(t["path"]) > 1]})
+    except Exception as exc:
+        logger.warning("Trails fetch failed: %s", exc)
+        return JSONResponse({"trails": []})
 
 
 @app.get("/aircraft")
