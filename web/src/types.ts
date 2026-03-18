@@ -1,0 +1,20 @@
+export interface Aircraft {
+  icao24: string;
+  callsign: string | null;
+  lat: number;
+  lon: number;
+  altitude: number | null;
+  velocity: number | null;
+  heading: number | null;
+  on_ground: boolean;
+  flight_phase: 'GROUND' | 'CLIMBING' | 'CRUISE' | 'DESCENDING';
+}
+
+export type FlightPhase = Aircraft['flight_phase'];
+
+export interface PositionsMessage {
+  type: 'positions';
+  timestamp: string;
+  count: number;
+  aircraft: Aircraft[];
+}
