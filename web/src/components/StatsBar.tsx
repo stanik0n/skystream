@@ -1,10 +1,64 @@
+import { useEffect, useRef, useState } from 'react';
+import type { FlightPhase } from '../types';
+
+interface PhaseCounts {
+  GROUND: number;
+  CLIMBING: number;
+  CRUISE: number;
+  DESCENDING: number;
+}
+
 interface StatsBarProps {
   count: number;
   connected: boolean;
   lastUpdate: Date | null;
+  phaseCounts: PhaseCounts;
 }
 
-export function StatsBar({ count, connected, lastUpdate }: StatsBarProps) {
+// Smoothly animate a number to a new target value
+function useAnimatedCount(target: number, duration = 600): number {
+  const [display, setDisplay] = useState(target);
+  const fromRef = useRef(target);
+  const frameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const start = fromRef.current;
+    const end = target;
+    if (start === end) return;
+
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+      setDisplay(Math.round(start + (end - start) * eased));
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate);
+      } else {
+        fromRef.current = end;
+      }
+    };
+
+    frameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [target, duration]);
+
+  return display;
+}
+
+const PHASE_DOT_COLORS: Record<FlightPhase, string> = {
+  GROUND:     'rgb(160,160,170)',
+  CLIMBING:   'rgb(0,220,120)',
+  CRUISE:     'rgb(50,160,255)',
+  DESCENDING: 'rgb(255,170,0)',
+};
+
+export function StatsBar({ count, connected, lastUpdate, phaseCounts }: StatsBarProps) {
+  const animatedCount = useAnimatedCount(count);
+
   const formattedTime = lastUpdate
     ? lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '—';
@@ -17,9 +71,25 @@ export function StatsBar({ count, connected, lastUpdate }: StatsBarProps) {
         <span style={styles.brandName}>SkyStream</span>
       </div>
 
-      {/* Stats */}
+      {/* Phase breakdown */}
+      <div style={styles.phaseRow}>
+        {(Object.keys(phaseCounts) as FlightPhase[]).map((phase) => (
+          <div key={phase} style={styles.phaseItem}>
+            <span
+              style={{
+                ...styles.phaseDot,
+                background: PHASE_DOT_COLORS[phase],
+                boxShadow: `0 0 5px ${PHASE_DOT_COLORS[phase]}`,
+              }}
+            />
+            <span style={styles.phaseCount}>{phaseCounts[phase].toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Right stats */}
       <div style={styles.stats}>
-        <StatItem label="Aircraft" value={count.toLocaleString()} />
+        <StatItem label="Aircraft" value={animatedCount.toLocaleString()} />
         <div style={styles.divider} />
         <StatItem label="Updated" value={formattedTime} />
         <div style={styles.divider} />
@@ -29,13 +99,11 @@ export function StatsBar({ count, connected, lastUpdate }: StatsBarProps) {
               ...styles.dot,
               backgroundColor: connected ? '#22c55e' : '#ef4444',
               boxShadow: connected
-                ? '0 0 6px rgba(34,197,94,0.7)'
-                : '0 0 6px rgba(239,68,68,0.7)',
+                ? '0 0 7px rgba(34,197,94,0.8)'
+                : '0 0 7px rgba(239,68,68,0.8)',
             }}
           />
-          <span style={styles.statusText}>
-            {connected ? 'Live' : 'Disconnected'}
-          </span>
+          <span style={styles.statusText}>{connected ? 'Live' : 'Disconnected'}</span>
         </div>
       </div>
     </div>
@@ -58,8 +126,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     height: 52,
-    background: 'rgba(13, 17, 23, 0.9)',
-    backdropFilter: 'blur(8px)',
+    background: 'rgba(10, 14, 20, 0.92)',
+    backdropFilter: 'blur(10px)',
     borderBottom: '1px solid rgba(255,255,255,0.08)',
     display: 'flex',
     alignItems: 'center',
@@ -72,6 +140,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    minWidth: 130,
   },
   brandIcon: {
     fontSize: 20,
@@ -82,10 +151,35 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: 0.5,
     color: '#58a6ff',
   },
+  phaseRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+  },
+  phaseItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+  },
+  phaseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  phaseCount: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#c9d1d9',
+    fontVariantNumeric: 'tabular-nums',
+  },
   stats: {
     display: 'flex',
     alignItems: 'center',
     gap: 16,
+    minWidth: 220,
+    justifyContent: 'flex-end',
   },
   statItem: {
     display: 'flex',
