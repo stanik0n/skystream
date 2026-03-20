@@ -129,8 +129,24 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
           const valid = msg.aircraft.filter((ac) => ac.lat != null && ac.lon != null);
 
-          // Update anchor — interpolation ticker handles all rendering
-          anchorRef.current = { aircraft: valid, timestamp: Date.now() };
+          // When new data arrives, seed the anchor from the current interpolated
+          // position (not raw OpenSky position) so planes never snap backward.
+          // Velocity/heading from new data are used; position continues smoothly.
+          const now = Date.now();
+          let baseAircraft = valid;
+          if (anchorRef.current) {
+            const prevElapsed = (now - anchorRef.current.timestamp) / 1000;
+            if (prevElapsed < MAX_INTERP_SECONDS) {
+              const prevMap = new Map(anchorRef.current.aircraft.map((a) => [a.icao24, a]));
+              baseAircraft = valid.map((ac) => {
+                const prev = prevMap.get(ac.icao24);
+                if (!prev) return ac;
+                const interpolated = interpolateAircraft(prev, prevElapsed);
+                return { ...ac, lat: interpolated.lat, lon: interpolated.lon };
+              });
+            }
+          }
+          anchorRef.current = { aircraft: baseAircraft, timestamp: now };
 
           setTrailsMap((prev) => {
             const next = new Map(prev);
