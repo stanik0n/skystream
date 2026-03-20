@@ -113,12 +113,22 @@ def write_to_redis(batch_df: DataFrame, batch_id: int) -> None:
         # Do not re-raise; Redis write failure should not stop the stream.
 
 
+_PG_COLS = [
+    "time", "icao24", "callsign", "latitude", "longitude",
+    "baro_altitude", "geo_altitude", "velocity", "true_track",
+    "vertical_rate", "on_ground", "flight_phase", "squawk", "ingested_at",
+]
+
+
 def process_batch(batch_df: DataFrame, batch_id: int) -> None:
     """Orchestrate all sink writes for a single micro-batch."""
     # Cache the batch to avoid recomputation across multiple sinks.
     batch_df.cache()
     try:
-        write_to_postgres(batch_df, batch_id)
+        # Postgres gets only schema columns (no category — avoids DB migration)
+        pg_df = batch_df.select(*[col(c) for c in _PG_COLS])
+        write_to_postgres(pg_df, batch_id)
+        # Redis gets all fields including category (schema-less JSON)
         write_to_redis(batch_df, batch_id)
     finally:
         batch_df.unpersist()
@@ -182,7 +192,7 @@ def main() -> None:
         to_timestamp(col("ingested_at")),
     )
 
-    # 5. Select only columns present in the flight_states table.
+    # 5. Select all output columns (category included for Redis; Postgres split happens in process_batch).
     output_cols = [
         "time",
         "icao24",
@@ -197,6 +207,7 @@ def main() -> None:
         "on_ground",
         "flight_phase",
         "squawk",
+        "category",
         "ingested_at",
     ]
     output_df = enriched.select(
