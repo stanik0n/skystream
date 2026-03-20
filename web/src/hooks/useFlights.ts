@@ -4,8 +4,6 @@ import type { Aircraft, FlightPhase, PositionsMessage, TrailEntry } from '../typ
 const RECONNECT_DELAY_MS = 3000;
 const MAX_TRAIL_POINTS = 20;
 const STALE_TIMEOUT_MS = 15_000;
-// Don't interpolate beyond this many seconds (plane may have turned)
-const MAX_INTERP_SECONDS = 15;
 
 interface UseFlightsResult {
   aircraft: Aircraft[];
@@ -13,24 +11,6 @@ interface UseFlightsResult {
   connected: boolean;
   count: number;
   lastUpdate: Date | null;
-}
-
-/** Dead-reckon a single aircraft forward by `elapsed` seconds */
-function interpolateAircraft(ac: Aircraft, elapsed: number): Aircraft {
-  if (
-    ac.on_ground ||
-    ac.velocity == null ||
-    ac.heading == null ||
-    ac.velocity < 10 // effectively stationary
-  ) {
-    return ac;
-  }
-  const headingRad = (ac.heading * Math.PI) / 180;
-  const dlat = (ac.velocity * Math.cos(headingRad) * elapsed) / 111_320;
-  const dlon =
-    (ac.velocity * Math.sin(headingRad) * elapsed) /
-    (111_320 * Math.cos((ac.lat * Math.PI) / 180));
-  return { ...ac, lat: ac.lat + dlat, lon: ac.lon + dlon };
 }
 
 export function useFlights(wsUrl: string): UseFlightsResult {
@@ -45,8 +25,6 @@ export function useFlights(wsUrl: string): UseFlightsResult {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const staleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-  // Anchor: last real positions received from WebSocket + when we got them
-  const anchorRef = useRef<{ aircraft: Aircraft[]; timestamp: number } | null>(null);
 
   // Fetch historical trails from the server on mount
   useEffect(() => {
@@ -67,26 +45,6 @@ export function useFlights(wsUrl: string): UseFlightsResult {
       })
       .catch((err) => console.warn('[SkyStream] Failed to fetch trails:', err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Interpolation ticker — runs every second, projects positions forward from last anchor
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (!anchorRef.current || !mountedRef.current) return;
-      const { aircraft: anchored, timestamp } = anchorRef.current;
-      const elapsed = (Date.now() - timestamp) / 1000;
-      if (elapsed > MAX_INTERP_SECONDS) return;
-
-      setAircraftMap(() => {
-        const next = new Map<string, Aircraft>();
-        for (const ac of anchored) {
-          next.set(ac.icao24, interpolateAircraft(ac, elapsed));
-        }
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(id);
   }, []);
 
   const connect = useCallback(() => {
@@ -129,24 +87,11 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
           const valid = msg.aircraft.filter((ac) => ac.lat != null && ac.lon != null);
 
-          // When new data arrives, seed the anchor from the current interpolated
-          // position (not raw OpenSky position) so planes never snap backward.
-          // Velocity/heading from new data are used; position continues smoothly.
-          const now = Date.now();
-          let baseAircraft = valid;
-          if (anchorRef.current) {
-            const prevElapsed = (now - anchorRef.current.timestamp) / 1000;
-            if (prevElapsed < MAX_INTERP_SECONDS) {
-              const prevMap = new Map(anchorRef.current.aircraft.map((a) => [a.icao24, a]));
-              baseAircraft = valid.map((ac) => {
-                const prev = prevMap.get(ac.icao24);
-                if (!prev) return ac;
-                const interpolated = interpolateAircraft(prev, prevElapsed);
-                return { ...ac, lat: interpolated.lat, lon: interpolated.lon };
-              });
-            }
-          }
-          anchorRef.current = { aircraft: baseAircraft, timestamp: now };
+          setAircraftMap(() => {
+            const next = new Map<string, Aircraft>();
+            for (const ac of valid) next.set(ac.icao24, ac);
+            return next;
+          });
 
           setTrailsMap((prev) => {
             const next = new Map(prev);
