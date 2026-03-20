@@ -4,7 +4,6 @@ networks:
 
 volumes:
   postgres_data:
-  kafka_data:
 
 services:
   # ── Zookeeper ──────────────────────────────────────────────────────────────
@@ -39,8 +38,6 @@ services:
     ports:
       - "9092:9092"
       - "29092:29092"
-    volumes:
-      - kafka_data:/var/lib/kafka/data
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -176,6 +173,9 @@ services:
       REDIS_URL: redis://redis:6379
       POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/skystream
       WS_BROADCAST_INTERVAL_MS: ${WS_BROADCAST_INTERVAL_MS:-5000}
+      OPENSKY_USERNAME: ${OPENSKY_USERNAME:-}
+      OPENSKY_PASSWORD: ${OPENSKY_PASSWORD:-}
+      FLIGHTAWARE_API_KEY: ${FLIGHTAWARE_API_KEY:-}
 
   # ── React Frontend ────────────────────────────────────────────────────────
   web:

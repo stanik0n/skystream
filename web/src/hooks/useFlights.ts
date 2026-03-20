@@ -3,6 +3,8 @@ import type { Aircraft, FlightPhase, PositionsMessage, TrailEntry } from '../typ
 
 const RECONNECT_DELAY_MS = 3000;
 const MAX_TRAIL_POINTS = 20;
+// If no message received in this time, assume the connection is dead and reconnect
+const STALE_TIMEOUT_MS = 15_000;
 
 interface UseFlightsResult {
   aircraft: Aircraft[];
@@ -22,6 +24,7 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const staleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
   // Fetch historical trails from the server on mount
@@ -52,10 +55,24 @@ export function useFlights(wsUrl: string): UseFlightsResult {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      const resetStaleTimer = () => {
+        if (staleTimerRef.current) clearTimeout(staleTimerRef.current);
+        staleTimerRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          console.warn('[SkyStream] No message received in 15s — reconnecting.');
+          ws.onclose = null;
+          ws.close();
+          wsRef.current = null;
+          setConnected(false);
+          reconnectTimerRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+        }, STALE_TIMEOUT_MS);
+      };
+
       ws.onopen = () => {
         if (!mountedRef.current) return;
         console.info('[SkyStream] WebSocket connected to', wsUrl);
         setConnected(true);
+        resetStaleTimer();
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
@@ -64,12 +81,13 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
       ws.onmessage = (event: MessageEvent<string>) => {
         if (!mountedRef.current) return;
+        resetStaleTimer();
         try {
           const msg: PositionsMessage = JSON.parse(event.data);
           if (msg.type !== 'positions') return;
 
-          setAircraftMap((prev) => {
-            const next = new Map(prev);
+          setAircraftMap(() => {
+            const next = new Map<string, Aircraft>();
             for (const ac of msg.aircraft) {
               if (ac.lat != null && ac.lon != null) {
                 next.set(ac.icao24, ac);
@@ -128,9 +146,8 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
     return () => {
       mountedRef.current = false;
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (staleTimerRef.current) clearTimeout(staleTimerRef.current);
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();
