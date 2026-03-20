@@ -176,6 +176,8 @@ services:
       OPENSKY_USERNAME: ${OPENSKY_USERNAME:-}
       OPENSKY_PASSWORD: ${OPENSKY_PASSWORD:-}
       FLIGHTAWARE_API_KEY: ${FLIGHTAWARE_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-SkyStream <alerts@skystream.rajeshchowdary.com>}
 
   # ── React Frontend ────────────────────────────────────────────────────────
   web:

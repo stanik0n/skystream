@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -39,6 +40,9 @@ BROADCAST_INTERVAL_S: float = WS_BROADCAST_INTERVAL_MS / 1000.0
 OPENSKY_USERNAME: str = os.getenv("OPENSKY_USERNAME", "")
 OPENSKY_PASSWORD: str = os.getenv("OPENSKY_PASSWORD", "")
 FLIGHTAWARE_API_KEY: str = os.getenv("FLIGHTAWARE_API_KEY", "")
+RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+ALERT_FROM_EMAIL: str = os.getenv("ALERT_FROM_EMAIL", "SkyStream <alerts@skystream.rajeshchowdary.com>")
+ALERT_WINDOW_MINUTES: int = 65  # notify when ETA is within this many minutes
 
 # ── Postgres fallback query ───────────────────────────────────────────────────
 _PG_FALLBACK_QUERY = """
@@ -148,8 +152,9 @@ async def startup() -> None:
         logger.error("Could not connect to Postgres: %s", exc)
         state.pg_pool = None
 
-    # Start the background broadcast task.
+    # Start background tasks.
     asyncio.create_task(broadcast_loop())
+    asyncio.create_task(notification_loop())
 
 
 @app.on_event("shutdown")
@@ -395,6 +400,49 @@ async def get_full_trail(icao24: str, callsign: str = "") -> JSONResponse:
     return JSONResponse({"icao24": icao24, "path": local_path, "phase": local_phase})
 
 
+# ── Email alert subscriptions ─────────────────────────────────────────────────
+
+class SubscribeRequest(BaseModel):
+    email: str
+    icao24: str
+    callsign: str
+
+
+def _sub_key(icao24: str, email: str) -> str:
+    return f"sub:{icao24.lower()}:{email.lower()}"
+
+
+@app.post("/subscribe")
+async def subscribe(body: SubscribeRequest) -> JSONResponse:
+    """Subscribe an email to a 1-hour-out landing alert for a flight."""
+    if "@" not in body.email:
+        return JSONResponse({"ok": False, "error": "Invalid email"}, status_code=400)
+    if not state.redis_client:
+        return JSONResponse({"ok": False, "error": "Service unavailable"}, status_code=503)
+    key = _sub_key(body.icao24, body.email)
+    data = {
+        "email": body.email,
+        "icao24": body.icao24.lower(),
+        "callsign": body.callsign,
+        "notified": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await state.redis_client.set(key, json.dumps(data), ex=86400)
+    logger.info("Alert subscription created: %s → %s", body.email, body.icao24)
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/subscribe/{icao24}")
+async def unsubscribe(icao24: str, email: str) -> JSONResponse:
+    """Cancel a landing alert subscription."""
+    if not state.redis_client:
+        return JSONResponse({"ok": False})
+    key = _sub_key(icao24, email)
+    await state.redis_client.delete(key)
+    logger.info("Alert subscription removed: %s → %s", email, icao24)
+    return JSONResponse({"ok": True})
+
+
 @app.get("/aircraft")
 async def aircraft_snapshot() -> JSONResponse:
     """REST endpoint returning the current aircraft snapshot (useful for debugging)."""
@@ -502,6 +550,183 @@ async def get_route(icao24: str, callsign: str = "") -> JSONResponse:
     except Exception as exc:
         logger.warning("FlightAware route fetch failed for %s: %s", cs, exc)
         return JSONResponse({"origin": None, "destination": None})
+
+
+# ── Alert email ───────────────────────────────────────────────────────────────
+
+def _build_alert_html(
+    callsign: str,
+    flight_number: str,
+    orig_iata: str,
+    orig_city: str,
+    dest_iata: str,
+    dest_city: str,
+    minutes_remaining: int,
+    eta_formatted: str,
+) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:500px;margin:32px auto;padding:0 16px;">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;overflow:hidden;">
+      <div style="background:#0d2137;padding:22px 28px;border-bottom:1px solid #30363d;">
+        <span style="font-size:22px;">&#9992;</span>
+        <span style="color:#58a6ff;font-size:19px;font-weight:700;margin-left:10px;letter-spacing:0.5px;">SkyStream Alert</span>
+      </div>
+      <div style="padding:26px 28px;">
+        <p style="color:#8b949e;font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px;">Flight</p>
+        <h1 style="color:#f0f6fc;font-size:30px;font-weight:700;margin:0 0 24px;letter-spacing:2px;font-family:monospace;">{flight_number}</h1>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:10px;margin-bottom:20px;">
+          <tr>
+            <td style="padding:18px 20px;width:40%">
+              <div style="font-size:26px;font-weight:700;color:#f0f6fc;font-family:monospace;letter-spacing:2px;">{orig_iata}</div>
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">{orig_city}</div>
+            </td>
+            <td style="text-align:center;color:#6e7681;font-size:20px;padding:18px 8px;">&#x2192;</td>
+            <td style="padding:18px 20px;width:40%;text-align:right;">
+              <div style="font-size:26px;font-weight:700;color:#f0f6fc;font-family:monospace;letter-spacing:2px;">{dest_iata}</div>
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">{dest_city}</div>
+            </td>
+          </tr>
+        </table>
+
+        <div style="background:rgba(0,220,120,0.07);border:1px solid rgba(0,220,120,0.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+          <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Estimated Arrival</div>
+          <div style="color:#00dc78;font-size:26px;font-weight:700;letter-spacing:0.5px;">~{minutes_remaining} minutes</div>
+          <div style="color:#8b949e;font-size:12px;margin-top:4px;">{eta_formatted}</div>
+        </div>
+
+        <p style="color:#6e7681;font-size:11px;margin:0;line-height:1.5;">
+          You asked SkyStream to notify you when this flight was 1&nbsp;hour from landing.
+          This is an automated alert &mdash; no action needed.
+        </p>
+      </div>
+    </div>
+    <p style="color:#484f58;font-size:11px;text-align:center;margin-top:14px;">SkyStream &mdash; Real-Time Flight Tracker</p>
+  </div>
+</body>
+</html>"""
+
+
+async def send_alert_email(
+    email: str,
+    callsign: str,
+    route: dict,
+    minutes_remaining: int,
+) -> None:
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set — skipping alert email for %s.", callsign)
+        return
+
+    origin = route.get("origin") or {}
+    dest = route.get("destination") or {}
+    flight_number = route.get("flight_number") or callsign
+    orig_iata = origin.get("iata_code", "???")
+    orig_city = origin.get("municipality", "")
+    dest_iata = dest.get("iata_code", "???")
+    dest_city = dest.get("municipality", "")
+
+    eta_str = route.get("estimated_on") or route.get("scheduled_on") or ""
+    try:
+        eta_dt = datetime.fromisoformat(eta_str.replace("Z", "+00:00"))
+        eta_formatted = eta_dt.strftime("%H:%M %Z")
+    except (ValueError, AttributeError):
+        eta_formatted = "—"
+
+    html = _build_alert_html(
+        callsign, flight_number,
+        orig_iata, orig_city,
+        dest_iata, dest_city,
+        minutes_remaining, eta_formatted,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": ALERT_FROM_EMAIL,
+                    "to": [email],
+                    "subject": f"✈ {flight_number} landing in ~{minutes_remaining} min — {dest_iata}",
+                    "html": html,
+                },
+            )
+        if resp.is_success:
+            logger.info("Alert sent to %s for %s (%d min out).", email, callsign, minutes_remaining)
+        else:
+            logger.error("Resend API error %d: %s", resp.status_code, resp.text[:200])
+    except Exception as exc:
+        logger.error("Failed to send alert email to %s: %s", email, exc)
+
+
+# ── Notification background loop ──────────────────────────────────────────────
+
+async def notification_loop() -> None:
+    """Every 60 s, check all active subscriptions and fire emails when ETA ≤ ALERT_WINDOW_MINUTES."""
+    logger.info("Notification loop started (window: %d min).", ALERT_WINDOW_MINUTES)
+    while True:
+        await asyncio.sleep(60)
+        if not state.redis_client:
+            continue
+        try:
+            keys: list[str] = await state.redis_client.keys("sub:*")
+            if not keys:
+                continue
+            now = datetime.now(timezone.utc)
+            for key in keys:
+                raw = await state.redis_client.get(key)
+                if not raw:
+                    continue
+                data: dict = json.loads(raw)
+                if data.get("notified"):
+                    continue
+
+                icao24: str = data["icao24"]
+                callsign: str = data.get("callsign", "").strip()
+
+                # Fall back to live Redis flight data to get callsign
+                if not callsign:
+                    flight_raw = await state.redis_client.hget("flights", icao24)
+                    if flight_raw:
+                        callsign = json.loads(flight_raw).get("callsign", "").strip()
+                if not callsign:
+                    continue
+
+                # Look up cached route (populated when any client views this flight)
+                route_raw = await state.redis_client.get(f"route:{callsign}")
+                if not route_raw:
+                    continue
+                route: dict = json.loads(route_raw)
+
+                # Skip already-landed flights
+                if route.get("actual_on"):
+                    continue
+
+                eta_str: str = route.get("estimated_on") or route.get("scheduled_on") or ""
+                if not eta_str:
+                    continue
+                try:
+                    eta_dt = datetime.fromisoformat(eta_str.replace("Z", "+00:00"))
+                    if eta_dt.tzinfo is None:
+                        eta_dt = eta_dt.replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    continue
+
+                minutes_remaining = (eta_dt - now).total_seconds() / 60
+                if 0 < minutes_remaining <= ALERT_WINDOW_MINUTES:
+                    await send_alert_email(data["email"], callsign, route, int(minutes_remaining))
+                    data["notified"] = True
+                    ttl = await state.redis_client.ttl(key)
+                    await state.redis_client.set(key, json.dumps(data), ex=max(ttl, 3600))
+
+        except Exception as exc:
+            logger.error("Notification loop error: %s", exc)
 
 
 # ── WebSocket endpoint ────────────────────────────────────────────────────────
