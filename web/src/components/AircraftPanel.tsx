@@ -108,6 +108,7 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
   const [infoLoading, setInfoLoading] = useState(false);
   const [alertEmail, setAlertEmail] = useState('');
   const [alertSubscribed, setAlertSubscribed] = useState<string | null>(null); // email if subscribed
+  const [alertSentImmediately, setAlertSentImmediately] = useState(false);
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertError, setAlertError] = useState<string | null>(null);
 
@@ -127,6 +128,7 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
     const alerts = getStoredAlerts();
     setAlertSubscribed(alerts[aircraft.icao24] ?? null);
     setAlertEmail(localStorage.getItem(LAST_EMAIL_KEY) ?? '');
+    setAlertSentImmediately(false);
     setAlertError(null);
   }, [aircraft?.icao24]);
 
@@ -151,6 +153,7 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
       if (data.ok) {
         setStoredAlert(aircraft.icao24, alertEmail.trim());
         setAlertSubscribed(alertEmail.trim());
+        setAlertSentImmediately(!!data.sent_immediately);
       } else {
         setAlertError(data.error ?? 'Subscription failed.');
       }
@@ -368,10 +371,13 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
         {alertSubscribed ? (
           <div style={styles.alertSubscribed}>
             <div style={{ color: '#00dc78', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              ✓ Alert set
+              ✓ {alertSentImmediately ? 'Email sent!' : 'Alert set'}
             </div>
             <div style={{ color: '#8b949e', fontSize: 11, marginBottom: 10 }}>
-              We'll email <span style={{ color: '#c9d1d9' }}>{alertSubscribed}</span> when this flight is ~1 hour from landing.
+              {alertSentImmediately
+                ? <>Alert sent to <span style={{ color: '#c9d1d9' }}>{alertSubscribed}</span> — this flight is already within 1 hour of landing.</>
+                : <>We'll email <span style={{ color: '#c9d1d9' }}>{alertSubscribed}</span> when this flight is ~1 hour from landing.</>
+              }
             </div>
             <button
               style={styles.alertCancelBtn}

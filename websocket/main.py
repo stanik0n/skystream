@@ -414,22 +414,49 @@ def _sub_key(icao24: str, email: str) -> str:
 
 @app.post("/subscribe")
 async def subscribe(body: SubscribeRequest) -> JSONResponse:
-    """Subscribe an email to a 1-hour-out landing alert for a flight."""
+    """Subscribe an email to a 1-hour-out landing alert for a flight.
+    If the flight is already within the alert window, the email is sent immediately.
+    """
     if "@" not in body.email:
         return JSONResponse({"ok": False, "error": "Invalid email"}, status_code=400)
     if not state.redis_client:
         return JSONResponse({"ok": False, "error": "Service unavailable"}, status_code=503)
+
     key = _sub_key(body.icao24, body.email)
+    callsign = body.callsign.strip()
+
+    # Check if flight is already within the alert window
+    sent_immediately = False
+    if callsign:
+        route_raw = await state.redis_client.get(f"route:{callsign}")
+        if route_raw:
+            route: dict = json.loads(route_raw)
+            if not route.get("actual_on"):  # not already landed
+                eta_str = route.get("estimated_on") or route.get("scheduled_on") or ""
+                try:
+                    eta_dt = datetime.fromisoformat(eta_str.replace("Z", "+00:00"))
+                    if eta_dt.tzinfo is None:
+                        eta_dt = eta_dt.replace(tzinfo=timezone.utc)
+                    minutes_remaining = (eta_dt - datetime.now(timezone.utc)).total_seconds() / 60
+                    if 0 < minutes_remaining <= ALERT_WINDOW_MINUTES:
+                        await send_alert_email(body.email, callsign, route, int(minutes_remaining))
+                        sent_immediately = True
+                except (ValueError, TypeError):
+                    pass
+
     data = {
         "email": body.email,
         "icao24": body.icao24.lower(),
-        "callsign": body.callsign,
-        "notified": False,
+        "callsign": callsign,
+        "notified": sent_immediately,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await state.redis_client.set(key, json.dumps(data), ex=86400)
-    logger.info("Alert subscription created: %s → %s", body.email, body.icao24)
-    return JSONResponse({"ok": True})
+    logger.info(
+        "Alert subscription created: %s → %s (sent_immediately=%s)",
+        body.email, body.icao24, sent_immediately,
+    )
+    return JSONResponse({"ok": True, "sent_immediately": sent_immediately})
 
 
 @app.delete("/subscribe/{icao24}")
