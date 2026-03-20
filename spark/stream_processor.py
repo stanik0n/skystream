@@ -187,7 +187,6 @@ def main() -> None:
         "time",
         "icao24",
         "callsign",
-        "origin_country",
         "latitude",
         "longitude",
         "baro_altitude",
