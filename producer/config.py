@@ -1,9 +1,9 @@
 import os
 
-# adsb.fi — free, no auth required
+# airplanes.live — free, no auth required
 # For global coverage use point/0/0/10000 (10000nm radius covers the globe).
 # For regional, use point/{lat}/{lon}/{radius_nm}.
-AIRPLANES_LIVE_BASE_URL = "https://api.adsb.fi/v1/point"
+AIRPLANES_LIVE_BASE_URL = "https://api.airplanes.live/v2/point"
 
 BOUNDING_BOX = (
     float(os.getenv('OPENSKY_BBOX_MIN_LAT', '24.0')),
