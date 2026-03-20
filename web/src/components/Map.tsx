@@ -23,50 +23,37 @@ const PHASE_LABELS: Record<FlightPhase, string> = {
   DESCENDING: 'Descending',
 };
 
-// ── Icon atlas: plane | helicopter | balloon | glider | drone (each 100×100) ──
-const ICON_ATLAS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
-  <!-- Plane (0-100) -->
-  <path d="M50,5 C54,5 57,14 57,28 L57,48 L88,61 L88,68 L57,58 L57,73 L67,78 L67,85 L50,80 L33,85 L33,78 L43,73 L43,58 L12,68 L12,61 L43,48 L43,28 C43,14 46,5 50,5Z" fill="white"/>
-  <!-- Helicopter (100-200) -->
-  <g transform="translate(100,0)">
-    <rect x="5" y="46" width="90" height="7" rx="3" fill="white"/>
-    <ellipse cx="50" cy="57" rx="14" ry="17" fill="white"/>
-    <rect x="47" y="57" width="6" height="28" rx="2" fill="white"/>
-    <rect x="33" y="81" width="28" height="5" rx="2" fill="white"/>
-  </g>
-  <!-- Balloon (200-300) -->
-  <g transform="translate(200,0)">
-    <ellipse cx="50" cy="42" rx="27" ry="34" fill="white"/>
-    <rect x="42" y="76" width="16" height="12" rx="2" fill="white"/>
-    <line x1="44" y1="76" x2="36" y2="70" stroke="white" stroke-width="2"/>
-    <line x1="56" y1="76" x2="64" y2="70" stroke="white" stroke-width="2"/>
-  </g>
-  <!-- Glider (300-400) -->
-  <g transform="translate(300,0)">
-    <path d="M50,12 C51,12 52,16 52,28 L52,44 L92,56 L92,62 L52,52 L52,60 L56,63 L56,68 L50,66 L44,68 L44,63 L48,60 L48,52 L8,62 L8,56 L48,44 L48,28 C48,16 49,12 50,12Z" fill="white"/>
-  </g>
-  <!-- Drone (400-500) -->
-  <g transform="translate(400,0)">
-    <rect x="22" y="47" width="56" height="6" rx="3" fill="white" transform="rotate(45,50,50)"/>
-    <rect x="22" y="47" width="56" height="6" rx="3" fill="white" transform="rotate(-45,50,50)"/>
-    <rect x="43" y="43" width="14" height="14" rx="3" fill="white"/>
-    <circle cx="21" cy="21" r="9" fill="white"/>
-    <circle cx="79" cy="21" r="9" fill="white"/>
-    <circle cx="21" cy="79" r="9" fill="white"/>
-    <circle cx="79" cy="79" r="9" fill="white"/>
-  </g>
-</svg>`;
+// ── Per-type icon SVGs (each 100×100, mask:true so color is applied) ──────────
+function makeSvgUrl(body: string) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">${body}</svg>`
+  )}`;
+}
 
-const ICON_ATLAS_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ICON_ATLAS_SVG)}`;
-const ICON_MAPPING = {
-  plane:      { x: 0,   y: 0, width: 100, height: 100, mask: true },
-  helicopter: { x: 100, y: 0, width: 100, height: 100, mask: true },
-  balloon:    { x: 200, y: 0, width: 100, height: 100, mask: true },
-  glider:     { x: 300, y: 0, width: 100, height: 100, mask: true },
-  drone:      { x: 400, y: 0, width: 100, height: 100, mask: true },
+const ICONS = {
+  plane: {
+    url: makeSvgUrl('<path d="M50,5 C54,5 57,14 57,28 L57,48 L88,61 L88,68 L57,58 L57,73 L67,78 L67,85 L50,80 L33,85 L33,78 L43,73 L43,58 L12,68 L12,61 L43,48 L43,28 C43,14 46,5 50,5Z" fill="white"/>'),
+    mapping: { icon: { x: 0, y: 0, width: 100, height: 100, mask: true } },
+  },
+  helicopter: {
+    url: makeSvgUrl('<rect x="5" y="46" width="90" height="7" rx="3" fill="white"/><ellipse cx="50" cy="57" rx="14" ry="17" fill="white"/><rect x="47" y="57" width="6" height="28" rx="2" fill="white"/><rect x="33" y="81" width="28" height="5" rx="2" fill="white"/>'),
+    mapping: { icon: { x: 0, y: 0, width: 100, height: 100, mask: true } },
+  },
+  balloon: {
+    url: makeSvgUrl('<ellipse cx="50" cy="42" rx="27" ry="34" fill="white"/><rect x="42" y="76" width="16" height="12" rx="2" fill="white"/><line x1="44" y1="76" x2="36" y2="70" stroke="white" stroke-width="2"/><line x1="56" y1="76" x2="64" y2="70" stroke="white" stroke-width="2"/>'),
+    mapping: { icon: { x: 0, y: 0, width: 100, height: 100, mask: true } },
+  },
+  glider: {
+    url: makeSvgUrl('<path d="M50,12 C51,12 52,16 52,28 L52,44 L92,56 L92,62 L52,52 L52,60 L56,63 L56,68 L50,66 L44,68 L44,63 L48,60 L48,52 L8,62 L8,56 L48,44 L48,28 C48,16 49,12 50,12Z" fill="white"/>'),
+    mapping: { icon: { x: 0, y: 0, width: 100, height: 100, mask: true } },
+  },
+  drone: {
+    url: makeSvgUrl('<rect x="22" y="47" width="56" height="6" rx="3" fill="white" transform="rotate(45,50,50)"/><rect x="22" y="47" width="56" height="6" rx="3" fill="white" transform="rotate(-45,50,50)"/><rect x="43" y="43" width="14" height="14" rx="3" fill="white"/><circle cx="21" cy="21" r="9" fill="white"/><circle cx="79" cy="21" r="9" fill="white"/><circle cx="21" cy="79" r="9" fill="white"/><circle cx="79" cy="79" r="9" fill="white"/>'),
+    mapping: { icon: { x: 0, y: 0, width: 100, height: 100, mask: true } },
+  },
 };
 
-function getIconName(category: string | null | undefined): string {
+function getIconKey(category: string | null | undefined): keyof typeof ICONS {
   switch (category) {
     case 'A7': return 'helicopter';
     case 'B2': return 'balloon';
@@ -318,26 +305,30 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
       ? baseAircraft.filter((a) => a.flight_phase === filterPhase)
       : baseAircraft;
 
-    const iconLayer = new IconLayer<Aircraft>({
-      id: 'aircraft-icons',
-      data: visibleAircraft,
-      pickable: true,
-      iconAtlas: ICON_ATLAS_URL,
-      iconMapping: ICON_MAPPING,
-      getIcon: (d) => getIconName(d.category),
-      getPosition: (d) => [d.lon, d.lat],
-      getSize: (d) => getIconSize(d, d.icao24 === selectedIcao24),
-      getAngle: (d) => -(d.heading ?? 0),
-      getColor: (d) =>
-        d.icao24 === selectedIcao24
-          ? [255, 255, 80, 255]
-          : PHASE_COLORS[d.flight_phase],
-      sizeUnits: 'pixels',
-      sizeScale: zoomSizeScale(zoom),
-      updateTriggers: {
-        getSize: [selectedIcao24],
-        getColor: [selectedIcao24],
-      },
+    const iconLayers = (Object.keys(ICONS) as Array<keyof typeof ICONS>).map((key) => {
+      const icon = ICONS[key];
+      const data = visibleAircraft.filter((a) => getIconKey(a.category) === key);
+      return new IconLayer<Aircraft>({
+        id: `aircraft-icons-${key}`,
+        data,
+        pickable: true,
+        iconAtlas: icon.url,
+        iconMapping: icon.mapping,
+        getIcon: () => 'icon',
+        getPosition: (d) => [d.lon, d.lat],
+        getSize: (d) => getIconSize(d, d.icao24 === selectedIcao24),
+        getAngle: (d) => key === 'balloon' ? 0 : -(d.heading ?? 0),
+        getColor: (d) =>
+          d.icao24 === selectedIcao24
+            ? [255, 255, 80, 255]
+            : PHASE_COLORS[d.flight_phase],
+        sizeUnits: 'pixels',
+        sizeScale: zoomSizeScale(zoom),
+        updateTriggers: {
+          getSize: [selectedIcao24],
+          getColor: [selectedIcao24],
+        },
+      });
     });
 
     const visibleAirports = AIRPORTS.filter((a) => {
@@ -360,7 +351,7 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
       sizeScale: zoom >= 7 ? 1 : zoom >= 5 ? 0.85 : 0.7,
     });
 
-    return [userRingLayer, userDotLayer, airportIconLayer, trailLayer, pulseRingOuter, pulseRingInner, iconLayer].filter(Boolean);
+    return [userRingLayer, userDotLayer, airportIconLayer, trailLayer, pulseRingOuter, pulseRingInner, ...iconLayers].filter(Boolean);
   }, [aircraft, trails, selectedIcao24, selectedTrail, pulseScale, zoom, userLocation, filterPhase]);
 
   const handleClick = (info: PickingInfo) => {
