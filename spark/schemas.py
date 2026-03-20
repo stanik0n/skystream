@@ -25,6 +25,7 @@ FLIGHT_STATE_SCHEMA = StructType(
         StructField("true_track", DoubleType(), nullable=True),
         StructField("vertical_rate", DoubleType(), nullable=True),
         StructField("squawk", StringType(), nullable=True),
+        StructField("category", StringType(), nullable=True),
         StructField("ingested_at", StringType(), nullable=True),
     ]
 )

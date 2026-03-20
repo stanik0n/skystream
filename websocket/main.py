@@ -217,6 +217,7 @@ async def fetch_from_redis() -> list[dict]:
                         "heading": _safe_float(rec.get("true_track")),
                         "on_ground": _safe_bool(rec.get("on_ground", False)),
                         "flight_phase": rec.get("flight_phase", "CRUISE"),
+                        "category": rec.get("category"),
                     }
                 )
             except (json.JSONDecodeError, KeyError) as exc:

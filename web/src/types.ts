@@ -9,6 +9,7 @@ export interface Aircraft {
   vertical_rate: number | null;
   on_ground: boolean;
   flight_phase: 'GROUND' | 'CLIMBING' | 'CRUISE' | 'DESCENDING';
+  category: string | null;
 }
 
 export type FlightPhase = Aircraft['flight_phase'];

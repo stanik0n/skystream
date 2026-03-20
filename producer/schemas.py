@@ -20,6 +20,7 @@ class FlightState(BaseModel):
     true_track: Optional[float] = Field(None, description="True track in degrees clockwise from north")
     vertical_rate: Optional[float] = Field(None, description="Vertical rate in m/s (positive = climbing)")
     squawk: Optional[str] = Field(None, description="Transponder squawk code")
+    category: Optional[str] = Field(None, description="ADS-B emitter category (e.g. A7=helicopter, B2=balloon)")
     ingested_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO8601 timestamp when this record was ingested by the producer",

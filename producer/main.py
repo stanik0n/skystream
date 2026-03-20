@@ -174,6 +174,7 @@ def parse_aircraft(ac: dict) -> Optional[FlightState]:
             true_track=_safe_float(ac.get("track")),
             vertical_rate=vertical_rate,
             squawk=ac.get("squawk"),
+            category=ac.get("category"),
         )
     except Exception as exc:
         logger.debug("Could not parse aircraft %s: %s", ac.get("hex"), exc)
