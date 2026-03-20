@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { PickingInfo } from '@deck.gl/core';
 import type { Aircraft, FlightPhase, TrailEntry } from '../types';
 import { AIRPORTS, type Airport } from '../data/airports';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // ── Phase colours ─────────────────────────────────────────────────────────────
 const PHASE_COLORS: Record<FlightPhase, [number, number, number, number]> = {
@@ -130,6 +131,7 @@ interface AirportHoverInfo {
 }
 
 export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onSelect, trackTarget }: MapProps) {
+  const isMobile = useIsMobile();
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [airportHover, setAirportHover] = useState<AirportHoverInfo | null>(null);
   const [pulseScale, setPulseScale] = useState(1);
@@ -470,8 +472,7 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
         disabled={locating}
         style={{
           position: 'absolute',
-          bottom: 28,
-          right: 16,
+          ...(isMobile ? { top: 10, right: 12 } : { bottom: 28, right: 16 }),
           background: 'rgba(10,14,20,0.88)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -498,8 +499,8 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
         {locating ? 'Locating…' : 'Locate Me'}
       </button>
 
-      {/* Flight phase legend */}
-      <div
+      {/* Flight phase legend — desktop only */}
+      {!isMobile && <div
         style={{
           position: 'absolute',
           bottom: 28,
@@ -571,7 +572,7 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
             Show all
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

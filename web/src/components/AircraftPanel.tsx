@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Aircraft, FlightPhase } from '../types';
 import { lookupAirline, airlineLogoUrl } from '../data/airlines';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const _WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || 'ws://localhost:8000/ws';
 const HTTP_URL = _WS_URL.replace(/^ws/, 'http').replace(/\/ws$/, '');
@@ -82,6 +83,7 @@ interface AircraftPanelProps {
 }
 
 export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack }: AircraftPanelProps) {
+  const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
   const [flightInfo, setFlightInfo] = useState<FlightInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
@@ -105,8 +107,31 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
   const arrDelay = flightInfo?.arrival_delay ?? 0;
   const depDelay = flightInfo?.departure_delay ?? 0;
 
+  const panelStyle: React.CSSProperties = isMobile ? {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    maxHeight: '72vh',
+    background: 'rgba(10, 14, 20, 0.97)',
+    backdropFilter: 'blur(16px)',
+    borderTop: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: '16px 16px 0 0',
+    padding: '0 16px 24px',
+    color: '#e6edf3',
+    zIndex: 160,
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.7)',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+  } : styles.panel;
+
   return (
-    <div style={styles.panel}>
+    <div style={panelStyle}>
+      {/* Drag handle on mobile */}
+      {isMobile && (
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, margin: '12px auto 10px' }} />
+      )}
       {/* Accent line */}
       <div style={{ ...styles.accentLine, background: phase.color, boxShadow: `0 0 12px ${phase.glow}` }} />
 
