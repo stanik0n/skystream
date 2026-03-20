@@ -92,14 +92,19 @@ function getIconSize(ac: Aircraft, isSelected: boolean): number {
   return 24;
 }
 
-// Scale icons down at low zoom levels (fully zoomed out ≈ zoom 2)
+// Scale icons with zoom level
 function zoomSizeScale(zoom: number): number {
   if (zoom <= 2) return 0.18;
   if (zoom <= 3) return 0.28;
   if (zoom <= 4) return 0.45;
   if (zoom <= 5) return 0.65;
   if (zoom <= 6) return 0.85;
-  return 1;
+  if (zoom <= 7) return 1.0;
+  if (zoom <= 8) return 1.3;
+  if (zoom <= 9) return 1.7;
+  if (zoom <= 10) return 2.1;
+  if (zoom <= 12) return 2.6;
+  return 3.2;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -385,9 +390,7 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
           const newZoom = (vs as typeof INITIAL_VIEW_STATE).zoom;
           zoomRef.current = newZoom;
           setViewState(vs);
-          if (zoomSizeScale(newZoom) !== zoomSizeScale(zoom)) {
-            setZoom(newZoom);
-          }
+          setZoom(newZoom);
         }}
         layers={layers}
         pickingRadius={12}
