@@ -66,7 +66,7 @@ def ensure_topic(bootstrap_servers: str, topic: str, num_partitions: int = 4) ->
 
 def fetch_flights(session: requests.Session) -> Optional[list]:
     """
-    Fetch current aircraft positions from the airplanes.live API.
+    Fetch current aircraft positions from the adsb.fi API.
     Uses a large 10000nm radius from (0,0) for global coverage so that
     client-side bounding box filtering handles the final crop.
     Returns the raw aircraft list or None on failure.
@@ -97,7 +97,7 @@ def fetch_flights(session: requests.Session) -> Optional[list]:
             )
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 60))
-                logger.warning("Rate-limited by airplanes.live. Sleeping %ds.", retry_after)
+                logger.warning("Rate-limited by adsb.fi. Sleeping %ds.", retry_after)
                 time.sleep(retry_after)
                 continue
             resp.raise_for_status()
@@ -107,7 +107,7 @@ def fetch_flights(session: requests.Session) -> Optional[list]:
             last_exc = exc
             backoff = 2 ** attempt
             logger.warning(
-                "airplanes.live request failed (attempt %d/%d): %s. Retrying in %ds.",
+                "adsb.fi request failed (attempt %d/%d): %s. Retrying in %ds.",
                 attempt, config.MAX_RETRIES, exc, backoff,
             )
             time.sleep(backoff)
@@ -193,7 +193,7 @@ def within_bbox(flight: FlightState) -> bool:
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    logger.info("SkyStream producer starting up (source: airplanes.live).")
+    logger.info("SkyStream producer starting up (source: adsb.fi).")
     logger.info(
         "Bounding box: lat=[%.1f, %.1f] lon=[%.1f, %.1f]",
         *config.BOUNDING_BOX,
@@ -218,7 +218,7 @@ def main() -> None:
     session.headers.update({"Accept": "application/json", "User-Agent": "SkyStream/1.0"})
 
     poll_interval = config.POLL_INTERVAL_SECONDS
-    logger.info("Polling airplanes.live every %ds. Kafka topic: %s", poll_interval, config.KAFKA_TOPIC)
+    logger.info("Polling adsb.fi every %ds. Kafka topic: %s", poll_interval, config.KAFKA_TOPIC)
 
     while True:
         cycle_start = time.monotonic()
