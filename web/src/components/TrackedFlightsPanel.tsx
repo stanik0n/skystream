@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Aircraft, FlightPhase } from '../types';
 import { lookupAirline } from '../data/airlines';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const _WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || 'ws://localhost:8000/ws';
 const HTTP_URL = _WS_URL.replace(/^ws/, 'http').replace(/\/ws$/, '');
@@ -53,14 +54,13 @@ export function TrackedFlightsPanel({
   onFocus,
   onRemove,
 }: TrackedFlightsPanelProps) {
+  const isMobile = useIsMobile();
+
   interface FlightMeta { eta: string | null; origin: string | null; destination: string | null; }
-  // Cache of icao24 → flight meta
   const [meta, setMeta] = useState<Record<string, FlightMeta>>({});
-  // Tick every minute to refresh displayed countdown
   const [, setTick] = useState(0);
   const fetchedRef = useRef<Set<string>>(new Set());
 
-  // Fetch ETA for newly tracked flights
   useEffect(() => {
     for (const id of trackedIcao24s) {
       if (fetchedRef.current.has(id)) continue;
@@ -82,7 +82,6 @@ export function TrackedFlightsPanel({
         })
         .catch(() => {});
     }
-    // Clean up removed flights
     setMeta((prev) => {
       const next = { ...prev };
       for (const id of Object.keys(next)) {
@@ -95,7 +94,6 @@ export function TrackedFlightsPanel({
     });
   }, [trackedIcao24s, aircraft]);
 
-  // Countdown ticker — update every 30s
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30000);
     return () => clearInterval(id);
@@ -108,6 +106,97 @@ export function TrackedFlightsPanel({
     ac: aircraft.find((a) => a.icao24 === id) ?? null,
   }));
 
+  // ── Mobile: horizontal scrollable chip strip ───────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 52,
+        left: 0,
+        right: 0,
+        height: 64,
+        background: 'rgba(10,14,20,0.92)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        gap: 8,
+        padding: '0 12px',
+        zIndex: 150,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+      } as React.CSSProperties}>
+        {tracked.map(({ id, ac }) => {
+          const isActive = id === activeIcao24;
+          const phase = ac?.flight_phase ?? 'CRUISE';
+          const color = PHASE_COLORS[phase];
+          const callsign = ac?.callsign?.trim() || id.toUpperCase();
+          const flightMeta = meta[id];
+          const origin = flightMeta?.origin;
+          const destination = flightMeta?.destination;
+
+          return (
+            <div
+              key={id}
+              onClick={() => onFocus(id)}
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 44,
+                padding: '0 10px',
+                paddingRight: 24,
+                borderRadius: 8,
+                border: `1px solid ${isActive ? color : 'rgba(255,255,255,0.12)'}`,
+                background: isActive ? `rgba(${hexToRgb(color)},0.12)` : 'rgba(255,255,255,0.05)',
+                cursor: 'pointer',
+                position: 'relative',
+                gap: 2,
+                minWidth: 60,
+                transition: 'border-color 0.2s, background 0.2s',
+              }}
+            >
+              <span style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#f0f6fc',
+                fontFamily: 'monospace',
+                letterSpacing: 0.8,
+                lineHeight: 1,
+              }}>
+                {callsign}
+              </span>
+              <span style={{ fontSize: 9, color: isActive ? color : '#8b949e', fontWeight: 600 }}>
+                {origin && destination ? `${origin}→${destination}` : PHASE_LABELS[phase]}
+              </span>
+              <button
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  right: 5,
+                  background: 'none',
+                  border: 'none',
+                  color: '#6e7681',
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+                onClick={(e) => { e.stopPropagation(); onRemove(id); }}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Desktop: vertical panel ────────────────────────────────────────────────
   return (
     <div style={styles.panel}>
       <div style={styles.header}>

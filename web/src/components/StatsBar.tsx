@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FlightPhase } from '../types';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface PhaseCounts {
   GROUND: number;
@@ -13,7 +14,7 @@ interface StatsBarProps {
   connected: boolean;
   lastUpdate: Date | null;
   phaseCounts: PhaseCounts;
-  onSearch: (query: string) => boolean; // returns true if found
+  onSearch: (query: string) => boolean;
 }
 
 function useAnimatedCount(target: number, duration = 600): number {
@@ -52,6 +53,7 @@ const PHASE_DOT_COLORS: Record<FlightPhase, string> = {
 };
 
 export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }: StatsBarProps) {
+  const isMobile = useIsMobile();
   const animatedCount = useAnimatedCount(count);
   const [query, setQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -73,29 +75,32 @@ export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }
   };
 
   return (
-    <div style={styles.bar}>
+    <div style={{ ...styles.bar, padding: isMobile ? '0 12px' : '0 20px' }}>
       {/* Branding */}
       <div style={styles.brand}>
         <span style={styles.brandIcon}>✈</span>
-        <span style={styles.brandName}>SkyStream</span>
+        {!isMobile && <span style={styles.brandName}>SkyStream</span>}
       </div>
 
-      {/* Phase breakdown */}
-      <div style={styles.phaseRow}>
-        {(Object.keys(phaseCounts) as FlightPhase[]).map((phase) => (
-          <div key={phase} style={styles.phaseItem}>
-            <span style={{ ...styles.phaseDot, background: PHASE_DOT_COLORS[phase], boxShadow: `0 0 5px ${PHASE_DOT_COLORS[phase]}` }} />
-            <span style={styles.phaseCount}>{phaseCounts[phase].toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
+      {/* Phase breakdown — desktop only */}
+      {!isMobile && (
+        <div style={styles.phaseRow}>
+          {(Object.keys(phaseCounts) as FlightPhase[]).map((phase) => (
+            <div key={phase} style={styles.phaseItem}>
+              <span style={{ ...styles.phaseDot, background: PHASE_DOT_COLORS[phase], boxShadow: `0 0 5px ${PHASE_DOT_COLORS[phase]}` }} />
+              <span style={styles.phaseCount}>{phaseCounts[phase].toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Flight search */}
-      <div style={styles.searchWrapper}>
+      <div style={{ ...styles.searchWrapper, flex: isMobile ? '1 1 auto' : '0 0 auto', margin: isMobile ? '0 10px' : undefined }}>
         <input
           ref={inputRef}
           style={{
             ...styles.searchInput,
+            width: isMobile ? '100%' : 140,
             borderColor: notFound ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.12)',
           }}
           placeholder="Track flight…"
@@ -116,18 +121,25 @@ export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }
       </div>
 
       {/* Right stats */}
-      <div style={styles.stats}>
-        <StatItem label="Aircraft" value={animatedCount.toLocaleString()} />
-        <div style={styles.divider} />
-        <StatItem label="Updated" value={formattedTime} />
-        <div style={styles.divider} />
+      <div style={{ ...styles.stats, gap: isMobile ? 10 : 16 }}>
+        <div style={styles.statItem}>
+          {!isMobile && <span style={styles.statLabel}>Aircraft</span>}
+          <span style={styles.statValue}>{animatedCount.toLocaleString()}</span>
+        </div>
+        {!isMobile && (
+          <>
+            <div style={styles.divider} />
+            <StatItem label="Updated" value={formattedTime} />
+            <div style={styles.divider} />
+          </>
+        )}
         <div style={styles.statusDot}>
           <span style={{
             ...styles.dot,
             backgroundColor: connected ? '#22c55e' : '#ef4444',
             boxShadow: connected ? '0 0 7px rgba(34,197,94,0.8)' : '0 0 7px rgba(239,68,68,0.8)',
           }} />
-          <span style={styles.statusText}>{connected ? 'Live' : 'Disconnected'}</span>
+          {!isMobile && <span style={styles.statusText}>{connected ? 'Live' : 'Disconnected'}</span>}
         </div>
       </div>
     </div>
@@ -156,7 +168,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '0 20px',
     zIndex: 200,
     color: '#e6edf3',
     gap: 20,
@@ -202,7 +213,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 0,
-    flex: '0 0 auto',
   },
   searchInput: {
     background: 'rgba(255,255,255,0.06)',
@@ -214,7 +224,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     letterSpacing: 1,
     padding: '5px 12px',
-    width: 140,
     outline: 'none',
     fontFamily: 'monospace',
     transition: 'border-color 0.2s',
@@ -248,7 +257,6 @@ const styles: Record<string, React.CSSProperties> = {
   stats: {
     display: 'flex',
     alignItems: 'center',
-    gap: 16,
     flexShrink: 0,
     justifyContent: 'flex-end',
   },

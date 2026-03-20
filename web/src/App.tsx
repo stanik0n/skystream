@@ -4,6 +4,7 @@ import { AircraftPanel } from './components/AircraftPanel';
 import { StatsBar } from './components/StatsBar';
 import { TrackedFlightsPanel } from './components/TrackedFlightsPanel';
 import { useFlights } from './hooks/useFlights';
+import { useIsMobile } from './hooks/useIsMobile';
 import type { Aircraft, FlightPhase } from './types';
 
 const WS_URL =
@@ -11,6 +12,7 @@ const WS_URL =
 const HTTP_URL = WS_URL.replace(/^ws/, 'http').replace(/\/ws$/, '');
 
 export default function App() {
+  const isMobile = useIsMobile();
   const { aircraft, trails, connected, count, lastUpdate } = useFlights(WS_URL);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedTrail, setSelectedTrail] = useState<{ path: [number, number][]; phase: FlightPhase } | null>(null);
@@ -92,7 +94,7 @@ export default function App() {
         onSearch={handleSearch}
       />
 
-      <div style={{ position: 'absolute', top: 52, left: 0, right: 0, bottom: 0 }}>
+      <div style={{ position: 'absolute', top: isMobile && trackedIcao24s.length > 0 ? 116 : 52, left: 0, right: 0, bottom: 0 }}>
         <FlightMap
           aircraft={aircraft}
           trails={trails}
