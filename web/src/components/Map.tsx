@@ -48,7 +48,7 @@ const INITIAL_VIEW_STATE = {
   bearing: 0,
 };
 
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+const MAP_STYLE = 'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json';
 
 // ── Altitude → icon size ──────────────────────────────────────────────────────
 function getIconSize(ac: Aircraft, isSelected: boolean): number {
