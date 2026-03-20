@@ -129,15 +129,8 @@ export function useFlights(wsUrl: string): UseFlightsResult {
 
           const valid = msg.aircraft.filter((ac) => ac.lat != null && ac.lon != null);
 
-          // Update anchor — interpolation ticker will pick this up next tick
+          // Update anchor — interpolation ticker handles all rendering
           anchorRef.current = { aircraft: valid, timestamp: Date.now() };
-
-          // Immediately render real positions
-          setAircraftMap(() => {
-            const next = new Map<string, Aircraft>();
-            for (const ac of valid) next.set(ac.icao24, ac);
-            return next;
-          });
 
           setTrailsMap((prev) => {
             const next = new Map(prev);
