@@ -594,44 +594,75 @@ def _build_alert_html(
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:500px;margin:32px auto;padding:0 16px;">
-    <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;overflow:hidden;">
-      <div style="background:#0d2137;padding:22px 28px;border-bottom:1px solid #30363d;">
-        <span style="font-size:22px;">&#9992;</span>
-        <span style="color:#58a6ff;font-size:19px;font-weight:700;margin-left:10px;letter-spacing:0.5px;">SkyStream Alert</span>
-      </div>
-      <div style="padding:26px 28px;">
-        <p style="color:#8b949e;font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px;">Flight</p>
-        <h1 style="color:#f0f6fc;font-size:30px;font-weight:700;margin:0 0 24px;letter-spacing:2px;font-family:monospace;">{flight_number}</h1>
+<body style="margin:0;padding:0;background:#080c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:520px;margin:40px auto;padding:0 16px 40px;">
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;border:1px solid #30363d;border-radius:10px;margin-bottom:20px;">
+    <!-- Header -->
+    <div style="text-align:center;padding:0 0 28px;">
+      <span style="font-size:28px;">&#9992;</span>
+      <div style="color:#58a6ff;font-size:22px;font-weight:800;letter-spacing:1px;margin-top:6px;">SkyStream</div>
+      <div style="color:#484f58;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Landing Alert</div>
+    </div>
+
+    <!-- Card -->
+    <div style="background:#0e1420;border:1px solid #1e2a3a;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.6);">
+
+      <!-- Blue accent bar -->
+      <div style="height:3px;background:linear-gradient(90deg,#1d4ed8,#58a6ff,#38bdf8);"></div>
+
+      <div style="padding:30px 28px;">
+
+        <!-- Flight number -->
+        <div style="margin-bottom:24px;">
+          <div style="color:#4a5568;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Flight</div>
+          <div style="color:#f0f6fc;font-size:36px;font-weight:800;letter-spacing:3px;font-family:'Courier New',monospace;line-height:1;">{flight_number}</div>
+        </div>
+
+        <!-- Route box -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
           <tr>
-            <td style="padding:18px 20px;width:40%">
-              <div style="font-size:26px;font-weight:700;color:#f0f6fc;font-family:monospace;letter-spacing:2px;">{orig_iata}</div>
-              <div style="font-size:11px;color:#8b949e;margin-top:4px;">{orig_city}</div>
+            <!-- Origin -->
+            <td style="background:#0a0f1a;border:1px solid #1e2a3a;border-radius:12px;padding:18px 20px;width:44%;">
+              <div style="color:#4a5568;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">From</div>
+              <div style="color:#f0f6fc;font-size:28px;font-weight:800;font-family:'Courier New',monospace;letter-spacing:2px;line-height:1;">{orig_iata}</div>
+              <div style="color:#6e7681;font-size:11px;margin-top:6px;">{orig_city}</div>
             </td>
-            <td style="text-align:center;color:#6e7681;font-size:20px;padding:18px 8px;">&#x2192;</td>
-            <td style="padding:18px 20px;width:40%;text-align:right;">
-              <div style="font-size:26px;font-weight:700;color:#f0f6fc;font-family:monospace;letter-spacing:2px;">{dest_iata}</div>
-              <div style="font-size:11px;color:#8b949e;margin-top:4px;">{dest_city}</div>
+            <!-- Arrow -->
+            <td style="text-align:center;vertical-align:middle;padding:0 8px;width:12%;">
+              <div style="color:#1e2a3a;font-size:22px;line-height:1;">&#x2192;</div>
+            </td>
+            <!-- Destination -->
+            <td style="background:#0a0f1a;border:2px solid #2563eb;border-radius:12px;padding:18px 20px;width:44%;">
+              <div style="color:#3b82f6;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Landing at</div>
+              <div style="color:#f0f6fc;font-size:28px;font-weight:800;font-family:'Courier New',monospace;letter-spacing:2px;line-height:1;">{dest_iata}</div>
+              <div style="color:#6e7681;font-size:11px;margin-top:6px;">{dest_city}</div>
             </td>
           </tr>
         </table>
 
-        <div style="background:rgba(0,220,120,0.07);border:1px solid rgba(0,220,120,0.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;">
-          <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Estimated Arrival</div>
-          <div style="color:#00dc78;font-size:26px;font-weight:700;letter-spacing:0.5px;">~{minutes_remaining} minutes</div>
-          <div style="color:#8b949e;font-size:12px;margin-top:4px;">{eta_formatted}</div>
+        <!-- ETA box -->
+        <div style="background:linear-gradient(135deg,#052014,#071a0e);border:1px solid #14532d;border-radius:14px;padding:20px 22px;margin-bottom:24px;">
+          <div style="color:#166534;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">&#9200; Estimated Arrival</div>
+          <div style="color:#00dc78;font-size:38px;font-weight:800;line-height:1;letter-spacing:1px;">~{minutes_remaining} <span style="font-size:20px;font-weight:600;opacity:0.9;">min</span></div>
+          <div style="color:#4ade80;font-size:13px;margin-top:8px;font-weight:500;">{eta_formatted}</div>
         </div>
 
-        <p style="color:#6e7681;font-size:11px;margin:0;line-height:1.5;">
-          You asked SkyStream to notify you when this flight was 1&nbsp;hour from landing.
-          This is an automated alert &mdash; no action needed.
-        </p>
+        <!-- Footer note -->
+        <div style="border-top:1px solid #1e2a3a;padding-top:18px;">
+          <p style="color:#4a5568;font-size:11px;margin:0;line-height:1.7;">
+            You subscribed to this landing alert on <span style="color:#58a6ff;">SkyStream</span>.
+            This is a one-time notification &mdash; no further action needed.
+          </p>
+        </div>
+
       </div>
     </div>
-    <p style="color:#484f58;font-size:11px;text-align:center;margin-top:14px;">SkyStream &mdash; Real-Time Flight Tracker</p>
+
+    <!-- Bottom branding -->
+    <div style="text-align:center;margin-top:24px;">
+      <div style="color:#2a3441;font-size:11px;letter-spacing:1px;">&#9992; &nbsp;SKYSTREAM &mdash; REAL-TIME FLIGHT TRACKER</div>
+    </div>
+
   </div>
 </body>
 </html>"""
@@ -680,7 +711,7 @@ async def send_alert_email(
                 json={
                     "from": ALERT_FROM_EMAIL,
                     "to": [email],
-                    "subject": f"✈ {flight_number} landing in ~{minutes_remaining} min — {dest_iata}",
+                    "subject": f"SkyStream | {flight_number} landing in ~{minutes_remaining} min — {dest_iata}",
                     "html": html,
                 },
             )
