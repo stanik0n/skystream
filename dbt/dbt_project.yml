@@ -16,7 +16,7 @@ clean-targets: ["target", "dbt_packages"]
 models:
   skystream:
     staging:
-      +materialized: view
+      +materialized: table
     marts:
       +materialized: table
       fct_active_flights:
