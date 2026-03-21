@@ -92,6 +92,7 @@ export default function App() {
         lastUpdate={lastUpdate}
         phaseCounts={phaseCounts}
         onSearch={handleSearch}
+        aircraft={aircraft}
       />
 
       <div style={{ position: 'absolute', top: isMobile && trackedIcao24s.length > 0 ? 116 : 52, left: 0, right: 0, bottom: 0 }}>

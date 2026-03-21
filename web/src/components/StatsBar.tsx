@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FlightPhase } from '../types';
+import type { Aircraft, FlightPhase } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface PhaseCounts {
@@ -15,6 +15,7 @@ interface StatsBarProps {
   lastUpdate: Date | null;
   phaseCounts: PhaseCounts;
   onSearch: (query: string) => boolean;
+  aircraft: Aircraft[];
 }
 
 function useAnimatedCount(target: number, duration = 600): number {
@@ -52,27 +53,84 @@ const PHASE_DOT_COLORS: Record<FlightPhase, string> = {
   DESCENDING: 'rgb(255,170,0)',
 };
 
-export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }: StatsBarProps) {
+export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch, aircraft }: StatsBarProps) {
   const isMobile = useIsMobile();
   const animatedCount = useAnimatedCount(count);
   const [query, setQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const formattedTime = lastUpdate
     ? lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '—';
 
-  const handleSearch = () => {
-    if (!query.trim()) return;
-    const found = onSearch(query.trim());
+  const suggestions = query.trim().length >= 2
+    ? aircraft
+        .filter((a) => {
+          const q = query.toUpperCase();
+          return (
+            a.callsign?.trim().toUpperCase().startsWith(q) ||
+            a.icao24.toUpperCase().startsWith(q)
+          );
+        })
+        .slice(0, 6)
+    : [];
+
+  const handleSearch = (value = query) => {
+    if (!value.trim()) return;
+    const found = onSearch(value.trim());
     if (!found) {
       setNotFound(true);
       setTimeout(() => setNotFound(false), 2000);
     } else {
       setQuery('');
+      setShowSuggestions(false);
     }
   };
+
+  const handleSelect = (ac: Aircraft) => {
+    const q = ac.callsign?.trim() || ac.icao24;
+    setQuery(q);
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+    handleSearch(q);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === 'Enter') handleSearch();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0) handleSelect(suggestions[activeIndex]);
+      else handleSearch();
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+        setActiveIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
     <div style={{ ...styles.bar, padding: isMobile ? '0 12px' : '0 20px' }}>
@@ -95,7 +153,7 @@ export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }
       )}
 
       {/* Flight search */}
-      <div style={{ ...styles.searchWrapper, flex: isMobile ? '1 1 auto' : '0 0 auto', margin: isMobile ? '0 10px' : undefined }}>
+      <div ref={wrapperRef} style={{ ...styles.searchWrapper, flex: isMobile ? '1 1 auto' : '0 0 auto', margin: isMobile ? '0 10px' : undefined }}>
         <input
           ref={inputRef}
           style={{
@@ -105,18 +163,40 @@ export function StatsBar({ count, connected, lastUpdate, phaseCounts, onSearch }
           }}
           placeholder="Track flight…"
           value={query}
-          onChange={(e) => setQuery(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          onChange={(e) => {
+            setQuery(e.target.value.toUpperCase());
+            setShowSuggestions(true);
+            setActiveIndex(-1);
+            setNotFound(false);
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => query.trim().length >= 2 && setShowSuggestions(true)}
           spellCheck={false}
         />
-        <button style={styles.searchBtn} onClick={handleSearch} title="Track flight">
+        <button style={styles.searchBtn} onClick={() => handleSearch()} title="Track flight">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />
             <path d="M21 21l-4.35-4.35" />
           </svg>
         </button>
-        {notFound && (
-          <div style={styles.notFound}>Not found</div>
+        {notFound && <div style={styles.notFound}>Not found</div>}
+        {showSuggestions && suggestions.length > 0 && (
+          <div style={styles.dropdown}>
+            {suggestions.map((ac, i) => (
+              <div
+                key={ac.icao24}
+                style={{
+                  ...styles.dropdownItem,
+                  background: i === activeIndex ? 'rgba(88,166,255,0.15)' : 'transparent',
+                }}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(ac); }}
+                onMouseEnter={() => setActiveIndex(i)}
+              >
+                <span style={styles.dropdownCallsign}>{ac.callsign?.trim() || ac.icao24.toUpperCase()}</span>
+                <span style={styles.dropdownIcao}>{ac.icao24.toUpperCase()}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -253,6 +333,40 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '3px 10px',
     whiteSpace: 'nowrap',
     pointerEvents: 'none',
+  },
+  dropdown: {
+    position: 'absolute',
+    top: 'calc(100% + 4px)',
+    left: 0,
+    minWidth: '100%',
+    background: 'rgba(10,14,20,0.98)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    overflow: 'hidden',
+    zIndex: 300,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+  },
+  dropdownItem: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '7px 12px',
+    cursor: 'pointer',
+    gap: 12,
+    transition: 'background 0.1s',
+  },
+  dropdownCallsign: {
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: 'monospace',
+    color: '#f0f6fc',
+    letterSpacing: 1,
+  },
+  dropdownIcao: {
+    fontSize: 10,
+    color: '#6e7681',
+    fontFamily: 'monospace',
+    letterSpacing: 0.5,
   },
   stats: {
     display: 'flex',
