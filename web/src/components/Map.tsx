@@ -101,11 +101,11 @@ function zoomSizeScale(zoom: number): number {
   if (zoom <= 5) return 0.65;
   if (zoom <= 6) return 0.85;
   if (zoom <= 7) return 1.0;
-  if (zoom <= 8) return 1.3;
-  if (zoom <= 9) return 1.7;
-  if (zoom <= 10) return 2.1;
-  if (zoom <= 12) return 2.6;
-  return 3.2;
+  if (zoom <= 8) return 1.1;
+  if (zoom <= 9) return 1.2;
+  if (zoom <= 10) return 1.3;
+  if (zoom <= 12) return 1.4;
+  return 1.5;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
