@@ -116,6 +116,7 @@ interface MapProps {
   selectedTrail: { path: [number, number][]; phase: FlightPhase } | null;
   onSelect: (ac: Aircraft | null) => void;
   trackTarget: { lon: number; lat: number } | null;
+  onBreakTracking?: () => void;
 }
 
 interface HoverInfo {
@@ -130,7 +131,7 @@ interface AirportHoverInfo {
   object: Airport;
 }
 
-export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onSelect, trackTarget }: MapProps) {
+export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onSelect, trackTarget, onBreakTracking }: MapProps) {
   const isMobile = useIsMobile();
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [airportHover, setAirportHover] = useState<AirportHoverInfo | null>(null);
@@ -388,11 +389,14 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
       <DeckGL
         viewState={viewState as typeof INITIAL_VIEW_STATE}
         controller={true}
-        onViewStateChange={({ viewState: vs }) => {
+        onViewStateChange={({ viewState: vs, interactionState }) => {
           const newZoom = (vs as typeof INITIAL_VIEW_STATE).zoom;
           zoomRef.current = newZoom;
           setViewState(vs);
           setZoom(newZoom);
+          if (interactionState?.isDragging || interactionState?.isPanning) {
+            onBreakTracking?.();
+          }
         }}
         layers={layers}
         pickingRadius={12}
