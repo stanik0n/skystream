@@ -82,35 +82,11 @@ interface AircraftPanelProps {
   onUntrack: () => void;
 }
 
-// ── Alert subscription helpers ────────────────────────────────────────────────
-const ALERTS_KEY = 'sky_alerts';
-const LAST_EMAIL_KEY = 'sky_alert_email';
-
-function getStoredAlerts(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(ALERTS_KEY) ?? '{}'); } catch { return {}; }
-}
-function setStoredAlert(icao24: string, email: string) {
-  const map = getStoredAlerts();
-  map[icao24] = email;
-  localStorage.setItem(ALERTS_KEY, JSON.stringify(map));
-  localStorage.setItem(LAST_EMAIL_KEY, email);
-}
-function removeStoredAlert(icao24: string) {
-  const map = getStoredAlerts();
-  delete map[icao24];
-  localStorage.setItem(ALERTS_KEY, JSON.stringify(map));
-}
-
 export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack }: AircraftPanelProps) {
   const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
   const [flightInfo, setFlightInfo] = useState<FlightInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
-  const [alertEmail, setAlertEmail] = useState('');
-  const [alertSubscribed, setAlertSubscribed] = useState<string | null>(null); // email if subscribed
-  const [alertSentImmediately, setAlertSentImmediately] = useState(false);
-  const [alertLoading, setAlertLoading] = useState(false);
-  const [alertError, setAlertError] = useState<string | null>(null);
 
   useEffect(() => {
     setFlightInfo(null);
@@ -121,62 +97,6 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
       setInfoLoading(false);
     });
   }, [aircraft?.icao24, aircraft?.callsign]);
-
-  // Sync alert subscription state from localStorage when aircraft changes
-  useEffect(() => {
-    if (!aircraft) return;
-    const alerts = getStoredAlerts();
-    setAlertSubscribed(alerts[aircraft.icao24] ?? null);
-    setAlertEmail(localStorage.getItem(LAST_EMAIL_KEY) ?? '');
-    setAlertSentImmediately(false);
-    setAlertError(null);
-  }, [aircraft?.icao24]);
-
-  const handleSubscribe = async () => {
-    if (!aircraft || !alertEmail.trim() || !alertEmail.includes('@')) {
-      setAlertError('Enter a valid email address.');
-      return;
-    }
-    setAlertLoading(true);
-    setAlertError(null);
-    try {
-      const resp = await fetch(`${HTTP_URL}/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: alertEmail.trim(),
-          icao24: aircraft.icao24,
-          callsign: aircraft.callsign?.trim() ?? '',
-        }),
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        setStoredAlert(aircraft.icao24, alertEmail.trim());
-        setAlertSubscribed(alertEmail.trim());
-        setAlertSentImmediately(!!data.sent_immediately);
-      } else {
-        setAlertError(data.error ?? 'Subscription failed.');
-      }
-    } catch {
-      setAlertError('Could not connect. Try again.');
-    } finally {
-      setAlertLoading(false);
-    }
-  };
-
-  const handleUnsubscribe = async () => {
-    if (!aircraft || !alertSubscribed) return;
-    setAlertLoading(true);
-    try {
-      await fetch(
-        `${HTTP_URL}/subscribe/${aircraft.icao24}?email=${encodeURIComponent(alertSubscribed)}`,
-        { method: 'DELETE' },
-      );
-    } catch { /* best-effort */ }
-    removeStoredAlert(aircraft.icao24);
-    setAlertSubscribed(null);
-    setAlertLoading(false);
-  };
 
   if (!aircraft) return null;
 
@@ -357,66 +277,6 @@ export function AircraftPanel({ aircraft, onClose, isTracked, onTrack, onUntrack
         )}
         <DataRow label="Position" value={`${aircraft.lat.toFixed(4)}°, ${aircraft.lon.toFixed(4)}°`} />
         <DataRow label="On Ground" value={aircraft.on_ground ? 'Yes' : 'No'} />
-      </div>
-
-      {/* Email alert */}
-      <div style={styles.alertBox}>
-        <div style={styles.alertTitle}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b949e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-          Landing Alert
-        </div>
-        {alertSubscribed ? (
-          <div style={styles.alertSubscribed}>
-            <div style={{ color: '#00dc78', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              ✓ {alertSentImmediately ? 'Email sent!' : 'Alert set'}
-            </div>
-            <div style={{ color: '#8b949e', fontSize: 11, marginBottom: 10 }}>
-              {alertSentImmediately
-                ? <>Alert sent to <span style={{ color: '#c9d1d9' }}>{alertSubscribed}</span> — this flight is already within 1 hour of landing.</>
-                : <>We'll email <span style={{ color: '#c9d1d9' }}>{alertSubscribed}</span> when this flight is ~1 hour from landing.</>
-              }
-            </div>
-            <button
-              style={styles.alertCancelBtn}
-              onClick={handleUnsubscribe}
-              disabled={alertLoading}
-            >
-              {alertLoading ? 'Cancelling…' : 'Cancel alert'}
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div style={{ color: '#8b949e', fontSize: 11, marginBottom: 8 }}>
-              Get an email when this flight is ~1 hour from landing.
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={alertEmail}
-                onChange={(e) => { setAlertEmail(e.target.value); setAlertError(null); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubscribe()}
-                style={{
-                  ...styles.alertInput,
-                  borderColor: alertError ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)',
-                }}
-              />
-              <button
-                style={styles.alertBtn}
-                onClick={handleSubscribe}
-                disabled={alertLoading}
-              >
-                {alertLoading ? '…' : 'Notify'}
-              </button>
-            </div>
-            {alertError && (
-              <div style={{ color: '#f87171', fontSize: 11, marginTop: 5 }}>{alertError}</div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -631,60 +491,5 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#e6edf3',
     fontWeight: 500,
     fontVariantNumeric: 'tabular-nums',
-  },
-  alertBox: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-  },
-  alertTitle: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 7,
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#8b949e',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
-  alertSubscribed: {
-    background: 'rgba(0,220,120,0.05)',
-    border: '1px solid rgba(0,220,120,0.2)',
-    borderRadius: 8,
-    padding: '10px 12px',
-  },
-  alertInput: {
-    flex: 1,
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid',
-    borderRadius: 7,
-    color: '#f0f6fc',
-    fontSize: 12,
-    padding: '6px 10px',
-    outline: 'none',
-    minWidth: 0,
-  },
-  alertBtn: {
-    background: 'rgba(88,166,255,0.15)',
-    border: '1px solid rgba(88,166,255,0.3)',
-    borderRadius: 7,
-    color: '#58a6ff',
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: 'pointer',
-    padding: '6px 12px',
-    flexShrink: 0,
-    transition: 'background 0.15s',
-  },
-  alertCancelBtn: {
-    background: 'none',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 6,
-    color: '#8b949e',
-    fontSize: 11,
-    cursor: 'pointer',
-    padding: '4px 10px',
-    transition: 'color 0.15s',
   },
 };
