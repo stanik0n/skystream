@@ -70,18 +70,18 @@ for i in range(len(WAYPOINTS) - 1):
     segments.append((WAYPOINTS[i], WAYPOINTS[i + 1], seg_len))
     total_len += seg_len
 
-# Degrees per second along route (full loop in ~10 minutes)
-LOOP_DURATION_S = 600
+# Full loop duration — plane completes the circuit in this many seconds
+LOOP_DURATION_S = 3600  # 1 hour loop
 speed = total_len / LOOP_DURATION_S
 
-print(f"[SkyStream] Looping {CALLSIGN} every {LOOP_DURATION_S}s. Press Ctrl+C to stop.\n")
-
-elapsed = 0.0
+print(f"[SkyStream] Looping {CALLSIGN} every {LOOP_DURATION_S // 60} min. Press Ctrl+C to stop.\n")
 
 try:
     while True:
-        # Find current position along route
-        pos = (elapsed * speed) % total_len
+        # Base position on wall-clock time so it's always consistent
+        # regardless of when the script is started
+        elapsed = time.time() % LOOP_DURATION_S
+        pos = elapsed * speed
         walked = 0.0
         lat, lon, hdg = WAYPOINTS[0][0], WAYPOINTS[0][1], 0.0
 
@@ -97,7 +97,7 @@ try:
         eta = now + timedelta(minutes=58)
 
         # Determine flight phase based on position in loop
-        loop_fraction = (elapsed % LOOP_DURATION_S) / LOOP_DURATION_S
+        loop_fraction = elapsed / LOOP_DURATION_S
         if loop_fraction < 0.05 or loop_fraction > 0.95:
             phase, vrate, alt = "CLIMBING", 8.0, 3000.0
         elif loop_fraction < 0.15:
@@ -145,7 +145,6 @@ try:
         print(f"\r[{now.strftime('%H:%M:%S')}] {CALLSIGN}  lat={lat:.3f}  lon={lon:.3f}  hdg={hdg:.0f}°  {phase:<10}", end="", flush=True)
 
         time.sleep(UPDATE_INTERVAL)
-        elapsed += UPDATE_INTERVAL
 
 except KeyboardInterrupt:
     print("\n[SkyStream] Stopped. Cleaning up...")
