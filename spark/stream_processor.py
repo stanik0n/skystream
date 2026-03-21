@@ -125,11 +125,14 @@ def process_batch(batch_df: DataFrame, batch_id: int) -> None:
     # Cache the batch to avoid recomputation across multiple sinks.
     batch_df.cache()
     try:
-        # Postgres gets only schema columns (no category — avoids DB migration)
-        pg_df = batch_df.select(*[col(c) for c in _PG_COLS])
-        write_to_postgres(pg_df, batch_id)
-        # Redis gets all fields including category (schema-less JSON)
+        # Redis write is always attempted first — Postgres failure must not block it.
         write_to_redis(batch_df, batch_id)
+        # Postgres gets only schema columns (no category — avoids DB migration)
+        try:
+            pg_df = batch_df.select(*[col(c) for c in _PG_COLS])
+            write_to_postgres(pg_df, batch_id)
+        except Exception as exc:
+            logger.error("Batch %d: Postgres write failed, Redis write succeeded: %s", batch_id, exc)
     finally:
         batch_df.unpersist()
 
