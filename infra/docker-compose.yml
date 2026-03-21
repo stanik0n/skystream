@@ -179,6 +179,32 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-SkyStream <alerts@skystream.rajeshchowdary.com>}
 
+  # ── Metabase Analytics ────────────────────────────────────────────────────
+  metabase:
+    image: metabase/metabase:latest
+    container_name: skystream-metabase
+    restart: unless-stopped
+    networks:
+      - skystream-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: postgres
+      MB_DB_PASS: postgres
+      MB_DB_HOST: postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
   # ── React Frontend ────────────────────────────────────────────────────────
   web:
     build:
