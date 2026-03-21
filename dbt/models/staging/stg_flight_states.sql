@@ -21,5 +21,6 @@ cleaned as (
     from source
     where icao24 is not null
       and time is not null
+      and time > now() - interval '25 hours'
 )
 select * from cleaned
