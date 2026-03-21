@@ -1,8 +1,7 @@
 import os
 
-# airplanes.live — free, no auth required
-# For global coverage use point/0/0/10000 (10000nm radius covers the globe).
-# For regional, use point/{lat}/{lon}/{radius_nm}.
+# airplanes.live — free, no auth, global coverage
+# point/0/0/10000 = 10000nm radius from origin, covers the entire globe
 AIRPLANES_LIVE_BASE_URL = "https://api.airplanes.live/v2/point"
 
 BOUNDING_BOX = (

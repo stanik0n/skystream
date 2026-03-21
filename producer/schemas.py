@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class FlightState(BaseModel):
-    """Represents a single aircraft state vector from the adsb.fi API."""
+    """Represents a single aircraft state vector from the airplanes.live API."""
 
     icao24: str = Field(..., description="ICAO 24-bit address of the transponder in hex")
     callsign: Optional[str] = Field(None, description="Callsign / flight number")
