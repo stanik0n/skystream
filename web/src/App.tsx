@@ -105,6 +105,7 @@ export default function App() {
             setSelectedAircraft(ac);
           }}
           trackTarget={trackTarget}
+          onBreakTracking={() => setActiveTrackIcao24(null)}
         />
       </div>
 
