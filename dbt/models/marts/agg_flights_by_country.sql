@@ -1,12 +1,16 @@
+-- Daily traffic summary: unique aircraft, observations, avg altitude and speed.
+-- Useful for tracking data volume and overall pipeline health over time.
+
 select
-    origin_country,
-    count(*)                                        as active_flight_count,
-    count(*) filter (where on_ground = false)       as airborne_count,
-    count(*) filter (where on_ground = true)        as on_ground_count,
-    avg(baro_altitude)  filter (where on_ground = false) as avg_altitude_m,
-    avg(velocity)       filter (where on_ground = false) as avg_velocity_ms,
-    now()                                           as calculated_at
-from {{ ref('fct_active_flights') }}
-where origin_country is not null
-group by origin_country
-order by active_flight_count desc
+    date_trunc('day', time)                                         as day,
+    count(distinct icao24)                                          as unique_aircraft,
+    count(distinct callsign)                                        as unique_callsigns,
+    count(*)                                                        as total_observations,
+    round(avg(baro_altitude) filter (where on_ground = false)::numeric, 0) as avg_altitude_m,
+    round(avg(velocity)      filter (where on_ground = false)::numeric, 2) as avg_velocity_ms,
+    count(*) filter (where on_ground = false)                       as airborne_observations,
+    count(*) filter (where on_ground = true)                        as ground_observations
+from {{ ref('stg_flight_states') }}
+where time > now() - interval '7 days'
+group by 1
+order by 1 desc
