@@ -13,6 +13,8 @@ A real-time flight tracking pipeline that ingests live ADS-B telemetry from 9,00
 
 **Live:** https://skystream.rajeshchowdary.com
 
+![SkyStream](screenshot.png)
+
 ---
 
 ## Architecture
