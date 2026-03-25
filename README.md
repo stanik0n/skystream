@@ -11,7 +11,7 @@ A real-time flight tracking pipeline that ingests live ADS-B telemetry from 9,00
 
 ## Demo
 
-**Live:** http://173.212.237.120:5173
+**Live:** https://skystream.rajeshchowdary.com
 
 ![SkyStream Map](https://i.imgur.com/placeholder.png)
 
