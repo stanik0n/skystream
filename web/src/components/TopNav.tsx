@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Aircraft } from '../types';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const C = {
   primary: '#c3f5ff',
@@ -20,6 +21,7 @@ interface TopNavProps {
 }
 
 export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -101,8 +103,8 @@ export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
       boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 24px',
-      gap: 16,
+      padding: isMobile ? '0 12px' : '0 24px',
+      gap: isMobile ? 8 : 16,
     }}>
       {/* Logo + Nav */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexShrink: 0 }}>
@@ -145,7 +147,7 @@ export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
             background: C.surfaceContainerHigh,
             border: notFound ? '1px solid rgba(255,100,100,0.5)' : '1px solid transparent',
             borderRadius: 24,
-            padding: '7px 140px 7px 38px',
+            padding: isMobile ? '7px 80px 7px 36px' : '7px 140px 7px 38px',
             fontSize: 13,
             color: C.onSurface,
             outline: 'none',
@@ -153,7 +155,7 @@ export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
             boxSizing: 'border-box',
             transition: 'border-color 0.2s',
           }}
-          placeholder="Track flight, tail number, or airport..."
+          placeholder={isMobile ? 'Search flight…' : 'Track flight, tail number, or airport...'}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value.toUpperCase());
@@ -183,7 +185,8 @@ export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
             background: connected ? C.primaryContainer : '#849396',
             display: 'inline-block', flexShrink: 0,
           }} />
-          {count.toLocaleString()} ACTIVE
+          {!isMobile && <>{count.toLocaleString()} ACTIVE</>}
+          {isMobile && count.toLocaleString()}
         </div>
 
         {/* Suggestions */}
@@ -219,28 +222,30 @@ export function TopNav({ count, connected, aircraft, onSearch }: TopNavProps) {
         )}
       </div>
 
-      {/* Icon buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-        <button style={iconBtn} title="Flights">
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>flight_takeoff</span>
-        </button>
-        <button style={iconBtn} title="Notifications">
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
-        </button>
-        <button style={iconBtn} title="Settings">
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>settings</span>
-        </button>
-        <div style={{
-          width: 32, height: 32, borderRadius: '50%',
-          background: C.surfaceContainerHigh,
-          border: '1px solid rgba(59,73,76,0.8)',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginLeft: 4, flexShrink: 0,
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: C.onSurfaceVariant }}>person</span>
+      {/* Icon buttons — desktop only */}
+      {!isMobile && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <button style={iconBtn} title="Flights">
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>flight_takeoff</span>
+          </button>
+          <button style={iconBtn} title="Notifications">
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
+          </button>
+          <button style={iconBtn} title="Settings">
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>settings</span>
+          </button>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: C.surfaceContainerHigh,
+            border: '1px solid rgba(59,73,76,0.8)',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginLeft: 4, flexShrink: 0,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: C.onSurfaceVariant }}>person</span>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }
