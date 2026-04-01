@@ -3,7 +3,6 @@ import { FlightMap } from './components/Map';
 import { AircraftPanel } from './components/AircraftPanel';
 import { TrackedFlightsPanel } from './components/TrackedFlightsPanel';
 import { TopNav } from './components/TopNav';
-import { LeftSidebar } from './components/LeftSidebar';
 import { useFlights } from './hooks/useFlights';
 import { useIsMobile } from './hooks/useIsMobile';
 import type { Aircraft, FlightPhase } from './types';
@@ -12,7 +11,6 @@ const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) || 'ws://loca
 const HTTP_URL = WS_URL.replace(/^ws/, 'http').replace(/\/ws$/, '');
 
 const NAV_H = 56;
-const SIDEBAR_W = 80;
 const TRACKED_STRIP_H = 64;
 
 export default function App() {
@@ -80,7 +78,7 @@ export default function App() {
 
   const hasMobileTracked = isMobile && trackedIcao24s.length > 0;
   const mainTop = NAV_H + (hasMobileTracked ? TRACKED_STRIP_H : 0);
-  const mainLeft = isMobile ? 0 : SIDEBAR_W;
+  const mainLeft = 0;
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#131313' }}>
@@ -91,9 +89,6 @@ export default function App() {
         aircraft={aircraft}
         onSearch={handleSearch}
       />
-
-      {/* Fixed left sidebar (desktop only) */}
-      {!isMobile && <LeftSidebar />}
 
       {/* Mobile tracked strip */}
       {hasMobileTracked && (
