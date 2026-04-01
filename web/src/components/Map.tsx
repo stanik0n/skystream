@@ -204,6 +204,20 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
     }
   }, [trackTarget]);
 
+  const handleZoomIn = () => {
+    setViewState((vs: object) => {
+      const current = vs as typeof INITIAL_VIEW_STATE;
+      return { ...current, zoom: Math.min(current.zoom + 1, 20), transitionDuration: 300, transitionInterpolator: new LinearInterpolator(['zoom']) };
+    });
+  };
+
+  const handleZoomOut = () => {
+    setViewState((vs: object) => {
+      const current = vs as typeof INITIAL_VIEW_STATE;
+      return { ...current, zoom: Math.max(current.zoom - 1, 0), transitionDuration: 300, transitionInterpolator: new LinearInterpolator(['zoom']) };
+    });
+  };
+
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
@@ -470,113 +484,126 @@ export function FlightMap({ aircraft, trails, selectedIcao24, selectedTrail, onS
         </div>
       )}
 
-      {/* Locate Me button */}
-      <button
-        onClick={handleLocateMe}
-        disabled={locating}
-        style={{
-          position: 'absolute',
-          ...(isMobile ? { top: 10, right: 12 } : { bottom: 28, right: 16 }),
-          background: 'rgba(10,14,20,0.88)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          borderRadius: 10,
-          padding: '8px 14px',
-          color: locating ? '#8b949e' : '#4299e1',
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: locating ? 'default' : 'pointer',
-          zIndex: 100,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 7,
-          letterSpacing: 0.3,
-          transition: 'color 0.2s',
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-        {locating ? 'Locating…' : 'Locate Me'}
-      </button>
+      {/* Mobile locate button */}
+      {isMobile && (
+        <button
+          onClick={handleLocateMe}
+          disabled={locating}
+          style={{
+            position: 'absolute', top: 10, right: 12,
+            background: 'rgba(14,14,14,0.88)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 10,
+            padding: '7px 12px',
+            color: locating ? '#849396' : '#00e5ff',
+            fontSize: 12, fontWeight: 600,
+            cursor: locating ? 'default' : 'pointer',
+            zIndex: 100,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>my_location</span>
+          {locating ? 'Locating…' : 'Locate Me'}
+        </button>
+      )}
 
-      {/* Flight phase legend — desktop only */}
-      {!isMobile && <div
-        style={{
-          position: 'absolute',
-          bottom: 28,
-          left: 16,
-          background: 'rgba(10,14,20,0.88)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 10,
-          padding: '10px 16px',
+      {/* Desktop: zoom controls + locate */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute', bottom: 32, right: 32,
+          display: 'flex', flexDirection: 'column', gap: 8,
           zIndex: 100,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div style={{ fontSize: 10, color: '#8b949e', letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' }}>
-          Flight Phase
-        </div>
-        {(Object.keys(PHASE_LABELS) as FlightPhase[]).map((phase) => {
-          const [r, g, b] = PHASE_COLORS[phase];
-          const isActive = filterPhase === phase;
-          const isDimmed = filterPhase !== null && !isActive;
-          return (
-            <div
-              key={phase}
-              onClick={() => setFilterPhase(isActive ? null : phase)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 5,
-                cursor: 'pointer',
-                opacity: isDimmed ? 0.35 : 1,
-                transition: 'opacity 0.15s',
-                userSelect: 'none',
-                padding: '2px 4px',
-                borderRadius: 5,
-                background: isActive ? `rgba(${r},${g},${b},0.12)` : 'transparent',
-                border: isActive ? `1px solid rgba(${r},${g},${b},0.4)` : '1px solid transparent',
-              }}
-            >
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  background: `rgb(${r},${g},${b})`,
-                  boxShadow: `0 0 7px rgba(${r},${g},${b},0.8)`,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ color: isActive ? `rgb(${r},${g},${b})` : '#c9d1d9', fontSize: 12, fontWeight: isActive ? 600 : 400 }}>
-                {PHASE_LABELS[phase]}
-              </span>
-            </div>
-          );
-        })}
-        {filterPhase && (
-          <div
-            onClick={() => setFilterPhase(null)}
-            style={{
-              marginTop: 8,
-              fontSize: 10,
-              color: '#8b949e',
+        }}>
+          {[
+            { icon: 'add', onClick: handleZoomIn, title: 'Zoom in' },
+            { icon: 'remove', onClick: handleZoomOut, title: 'Zoom out' },
+          ].map(({ icon, onClick, title }) => (
+            <button key={icon} onClick={onClick} title={title} style={{
+              width: 40, height: 40,
+              background: 'rgba(14,14,14,0.6)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: 8,
+              color: '#bac9cc',
               cursor: 'pointer',
-              textAlign: 'center',
-              letterSpacing: 0.5,
-              textDecoration: 'underline',
-            }}
-          >
-            Show all
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+              transition: 'background 0.2s',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{icon}</span>
+            </button>
+          ))}
+          <button onClick={handleLocateMe} disabled={locating} title="Locate me" style={{
+            width: 40, height: 40, marginTop: 4,
+            background: 'rgba(14,14,14,0.6)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.05)',
+            borderRadius: 8,
+            color: locating ? '#849396' : '#00e5ff',
+            cursor: locating ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>my_location</span>
+          </button>
+        </div>
+      )}
+
+      {/* Desktop: telemetry legend */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute', bottom: 32, left: 32,
+          background: 'rgba(14,14,14,0.6)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: 12,
+          padding: '16px 18px',
+          zIndex: 100,
+          minWidth: 200,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#849396', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'Space Grotesk, sans-serif' }}>
+            Telemetry Legend
           </div>
-        )}
-      </div>}
+          {(Object.keys(PHASE_LABELS) as FlightPhase[]).map((phase) => {
+            const [r, g, b] = PHASE_COLORS[phase];
+            const isActive = filterPhase === phase;
+            const isDimmed = filterPhase !== null && !isActive;
+            return (
+              <div
+                key={phase}
+                onClick={() => setFilterPhase(isActive ? null : phase)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  marginBottom: 10, cursor: 'pointer',
+                  opacity: isDimmed ? 0.3 : 1,
+                  transition: 'opacity 0.15s',
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: `rgb(${r},${g},${b})`,
+                  boxShadow: `0 0 8px rgba(${r},${g},${b},0.6)`,
+                  flexShrink: 0,
+                }} />
+                <span style={{ fontSize: 12, color: isActive ? `rgb(${r},${g},${b})` : '#bac9cc', fontFamily: 'Inter, sans-serif', fontWeight: isActive ? 600 : 400 }}>
+                  {PHASE_LABELS[phase]}
+                </span>
+              </div>
+            );
+          })}
+          {filterPhase && (
+            <div onClick={() => setFilterPhase(null)} style={{ fontSize: 10, color: '#849396', cursor: 'pointer', textAlign: 'center', marginTop: 4 }}>
+              Show all
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

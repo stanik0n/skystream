@@ -212,7 +212,7 @@ export function TrackedFlightsPanel({
     return (
       <div style={{
         position: 'fixed',
-        top: 52,
+        top: 56,
         left: 0,
         right: 0,
         height: 64,
@@ -445,7 +445,7 @@ export function TrackedFlightsPanel({
 const styles: Record<string, React.CSSProperties> = {
   panel: {
     position: 'absolute',
-    top: 64,
+    top: 16,
     left: 16,
     width: 230,
     background: 'rgba(10,14,20,0.94)',
