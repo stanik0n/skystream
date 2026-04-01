@@ -70,11 +70,9 @@ export default function App() {
     return ac ? { lon: ac.lon, lat: ac.lat } : null;
   }, [activeTrackIcao24, aircraft]);
 
-  const avgSpeed = useMemo(() => {
-    const inAir = aircraft.filter((a) => a.velocity != null && !a.on_ground);
-    if (!inAir.length) return 0;
-    return Math.round(inAir.reduce((s, a) => s + (a.velocity ?? 0) * 1.94384, 0) / inAir.length);
-  }, [aircraft]);
+  const selectedSpeed = selectedAircraft?.velocity != null
+    ? Math.round(selectedAircraft.velocity * 1.94384)
+    : 0;
 
   const hasMobileTracked = isMobile && trackedIcao24s.length > 0;
   const mainTop = NAV_H + (hasMobileTracked ? TRACKED_STRIP_H : 0);
@@ -153,7 +151,7 @@ export default function App() {
           }}>
             <BentoStat icon="airplanemode_active" value={count.toLocaleString()} label="Flights Tracked" iconColor="#c3f5ff" iconBg="rgba(195,245,255,0.08)" />
             <BentoStat icon="track_changes" value={trackedIcao24s.length.toString()} label="Active Tracked" iconColor="#ffe9d5" iconBg="rgba(255,233,213,0.08)" />
-            <BentoStat icon="speed" value={`${avgSpeed} avg`} label="Knots Velocity" iconColor="#bac9cc" iconBg="rgba(186,201,204,0.08)" />
+            <BentoStat icon="speed" value={selectedSpeed > 0 ? `${selectedSpeed} kts` : '0'} label="Knots Velocity" iconColor="#bac9cc" iconBg="rgba(186,201,204,0.08)" />
           </div>
         )}
       </main>
